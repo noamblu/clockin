@@ -1,0 +1,5 @@
+{
+  "name": "ClockIn - Weekly Presence Management",
+  "description": "A comprehensive weekly presence management system for organizations, allowing employees to submit weekly plans, managers to approve them, and HR to view compliance dashboards.",
+  "requestFramePermissions": []
+}
