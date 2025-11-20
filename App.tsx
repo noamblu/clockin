@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { UserRole, PresencePlan, User, ApprovalStatus } from './types';
-import { TRANSLATIONS, MOCK_EMPLOYEE_PLAN, MOCK_TEAM_PLANS, MOCK_ALL_HISTORICAL_PLANS, getWeekDays } from './constants';
+import { TRANSLATIONS, MOCK_EMPLOYEE_PLAN, MOCK_TEAM_PLANS, MOCK_ALL_HISTORICAL_PLANS, MOCK_HISTORICAL_PLANS, MOCK_USER, MOCK_ALL_USERS, getWeekDays } from './constants';
 import Header from './components/Header';
 import EmployeeDashboard from './components/EmployeeDashboard';
 import TeamView from './components/TeamView';
@@ -9,6 +9,7 @@ import Dashboard from './components/Dashboard';
 import AdminView from './components/AdminView';
 import NotificationBanner from './components/NotificationBanner';
 import Login from './components/Login';
+import UserProfile from './components/UserProfile';
 
 const App: React.FC = () => {
   const [language, setLanguage] = useState<'en' | 'he'>('en');
@@ -27,6 +28,9 @@ const App: React.FC = () => {
   const [showReminder, setShowReminder] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [showProfile, setShowProfile] = useState(false);
+  
+  const [allUsers, setAllUsers] = useState<User[]>(MOCK_ALL_USERS);
 
   const t = TRANSLATIONS[language];
 
@@ -55,21 +59,46 @@ const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, [userRole, isAuthenticated]);
   
-  const handleLogin = () => {
-    const loggedInUser = {
-      id: 'u99',
-      name: 'Galia Levi',
-      avatarUrl: `https://i.pravatar.cc/150?u=galia`,
-      role: UserRole.Employee,
-    };
-    setCurrentUser(loggedInUser);
-    setUserRole(loggedInUser.role);
-    setIsAuthenticated(true);
+  const handleLogin = (googleUser?: Partial<User>) => {
+    if (googleUser) {
+        // Handle Google SSO Login
+        // Check if user exists in our "database" (allUsers) by email or ID
+        let existingUser = allUsers.find(u => u.email === googleUser.email);
+        
+        if (!existingUser) {
+            // If not exists, create a new user entry (Simulation)
+            existingUser = {
+                id: googleUser.id || `u${Date.now()}`,
+                name: googleUser.name || 'Google User',
+                avatarUrl: googleUser.avatarUrl || 'https://i.pravatar.cc/150?u=google',
+                roles: [UserRole.Employee],
+                email: googleUser.email
+            };
+            setAllUsers([...allUsers, existingUser]);
+        }
+
+        setCurrentUser(existingUser);
+        setUserRole(existingUser.roles[0]);
+        setIsAuthenticated(true);
+    } else {
+        // Default Mock Login
+        const loggedInUser: User = {
+            id: 'u99',
+            name: 'Galia Levi',
+            avatarUrl: `https://i.pravatar.cc/150?u=galia`,
+            roles: [UserRole.Employee, UserRole.Admin], 
+            email: 'galia@example.com'
+        };
+        setCurrentUser(loggedInUser);
+        setUserRole(loggedInUser.roles[0]);
+        setIsAuthenticated(true);
+    }
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
     setIsAuthenticated(false);
+    setShowProfile(false);
   };
 
   const handlePlanUpdate = useCallback((updatedPlan: PresencePlan) => {
@@ -83,7 +112,48 @@ const App: React.FC = () => {
     setTeamPlans(updatedPlans);
   }, []);
 
-  // Helper to get the plan for the current view date, or generate a new one
+  const handleUserUpdate = (updatedUser: User) => {
+      setCurrentUser(updatedUser);
+  };
+
+  const handleCopyPreviousPlan = useCallback(() => {
+    const prevDate = new Date(currentPlannerDate);
+    prevDate.setDate(prevDate.getDate() - 7);
+    const prevWeekDays = getWeekDays(prevDate);
+    const prevWeekOf = prevWeekDays[0].date;
+    
+    let sourcePlan = employeePlansMap[prevWeekOf];
+    
+    // Fallback to mock history if not in local state
+    if (!sourcePlan) {
+        const userIdToCheck = currentUser?.id || MOCK_USER.id;
+        sourcePlan = MOCK_HISTORICAL_PLANS.find(p => p.weekOf === prevWeekOf && p.user.id === userIdToCheck);
+    }
+
+    if (sourcePlan && sourcePlan.plan) {
+        const currentWeekDays = getWeekDays(currentPlannerDate);
+        const newPlanDays = currentWeekDays.map((day, index) => {
+            const sourceDay = sourcePlan!.plan[index];
+            return {
+                ...day,
+                status: sourceDay ? sourceDay.status : null
+            };
+        });
+        
+        const currentWeekOf = currentWeekDays[0].date;
+        const newPlan: PresencePlan = {
+            user: currentUser || MOCK_USER,
+            weekOf: currentWeekOf,
+            status: ApprovalStatus.NotSubmitted,
+            plan: newPlanDays
+        };
+        
+        handlePlanUpdate(newPlan);
+    } else {
+        alert(t.no_previous_plan);
+    }
+  }, [currentPlannerDate, employeePlansMap, currentUser, t, handlePlanUpdate]);
+
   const getCurrentWeekPlan = useMemo(() => {
       const tempWeekDays = getWeekDays(currentPlannerDate);
       const weekOfStr = tempWeekDays[0].date;
@@ -92,7 +162,6 @@ const App: React.FC = () => {
           return employeePlansMap[weekOfStr];
       }
 
-      // If no plan exists for this week, create a fresh one (but don't save to state until edited)
       return {
           user: currentUser || MOCK_EMPLOYEE_PLAN.user,
           weekOf: weekOfStr,
@@ -102,9 +171,12 @@ const App: React.FC = () => {
   }, [currentPlannerDate, employeePlansMap, currentUser]);
 
   const renderContent = () => {
+    if (showProfile && currentUser) {
+        return <UserProfile t={t} user={currentUser} onUpdate={handleUserUpdate} onClose={() => setShowProfile(false)} />;
+    }
+
     switch (userRole) {
       case UserRole.Employee:
-        // Combine current and historical plans for the team to make date range filter useful
         const teamUserIds = MOCK_TEAM_PLANS.map(p => p.user.id);
         const allTeamHistoricalPlans = MOCK_ALL_HISTORICAL_PLANS.filter(p => teamUserIds.includes(p.user.id));
         const allTeamPlansForDashboard = [...teamPlans, ...allTeamHistoricalPlans];
@@ -116,6 +188,7 @@ const App: React.FC = () => {
             teamPlans={allTeamPlansForDashboard}
             currentDate={currentPlannerDate}
             onDateChange={setCurrentPlannerDate}
+            onCopyPreviousPlan={handleCopyPreviousPlan}
           />
         );
       case UserRole.TeamLead:
@@ -130,7 +203,14 @@ const App: React.FC = () => {
   };
 
   if (!isAuthenticated) {
-    return <Login onLogin={handleLogin} t={t} language={language} setLanguage={setLanguage}/>;
+    return (
+        <Login 
+            onLogin={handleLogin} 
+            t={t} 
+            language={language} 
+            setLanguage={setLanguage}
+        />
+    );
   }
 
   return (
@@ -145,9 +225,16 @@ const App: React.FC = () => {
         onLogout={handleLogout}
         theme={theme}
         setTheme={setTheme}
+        onProfileClick={() => setShowProfile(!showProfile)}
       />
       <main className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
-        {showReminder && <NotificationBanner t={t} onClose={() => setShowReminder(false)} />}
+        {!showProfile && showReminder && (
+          <NotificationBanner 
+            title={t.reminder_title} 
+            message={t.reminder_body} 
+            onClose={() => setShowReminder(false)} 
+          />
+        )}
         {renderContent()}
       </main>
     </div>

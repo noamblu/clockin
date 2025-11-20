@@ -36,9 +36,34 @@ export interface PresencePlan {
   submittedAt?: Date;
 }
  
+export interface Team {
+  id: string;
+  name: string;
+  leaderId: string | null;
+}
+
 export interface User {
   id: string;
   name: string;
   avatarUrl: string;
-  role: UserRole;
+  roles: UserRole[];
+  teamId?: string;
+  email?: string;
+}
+
+export interface HRNotification {
+  id: string;
+  userId: string;
+  userName: string;
+  avatarUrl: string;
+  message: string;
+  date: string;
+  type: 'alert' | 'warning' | 'info';
+  isRead: boolean;
+}
+
+declare global {
+    interface Window {
+        google: any;
+    }
 }

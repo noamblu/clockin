@@ -146,6 +146,9 @@ const MyTeamStatus: React.FC<MyTeamStatusProps> = ({ t, teamPlans }) => {
     if (startDate && endDate) return []; 
     
     return teamPlans.filter(plan => {
+      // Only show Approved plans
+      if (plan.status !== ApprovalStatus.Approved) return false;
+
       if (startDate && plan.weekOf < startDate) return false; // Fallback for single date selection if user clears one
       if (endDate && plan.weekOf > endDate) return false;
       if (selectedUserIds.length > 0 && !selectedUserIds.includes(plan.user.id)) return false;
@@ -161,6 +164,9 @@ const MyTeamStatus: React.FC<MyTeamStatusProps> = ({ t, teamPlans }) => {
     const groupedData = new Map<string, { user: User, days: DailyPlan[] }>();
 
     teamPlans.forEach(plan => {
+      // Only show Approved plans
+      if (plan.status !== ApprovalStatus.Approved) return;
+
       // Filter by User
       if (selectedUserIds.length > 0 && !selectedUserIds.includes(plan.user.id)) return;
 
@@ -192,31 +198,27 @@ const MyTeamStatus: React.FC<MyTeamStatusProps> = ({ t, teamPlans }) => {
 
   // Logic for Daily View
   const todayString = new Date().toLocaleDateString('en-CA');
-  const getWeekStartDateString = (date: Date): string => {
-    const d = new Date(date);
-    const day = d.getDay();
-    const diff = d.getDate() - day;
-    return new Date(d.setDate(diff)).toLocaleDateString('en-CA');
-  };
-  const currentWeekStartString = getWeekStartDateString(new Date());
+  
+  // Group users by their status for today
+  const usersByStatus = useMemo(() => {
+      const groups: Record<string, User[]> = {};
+      
+      teamPlans.forEach(plan => {
+          // Ensure plan is approved
+          if (plan.status !== ApprovalStatus.Approved) return;
 
-  const currentWeekPlans = teamPlans.filter(p => p.weekOf === currentWeekStartString);
+          const todayPlan = plan.plan.find(p => p.date === todayString);
+          if (todayPlan && todayPlan.status) {
+              if (!groups[todayPlan.status]) {
+                  groups[todayPlan.status] = [];
+              }
+              groups[todayPlan.status].push(plan.user);
+          }
+      });
+      return groups;
+  }, [teamPlans, todayString]);
 
-  const inOfficeToday = currentWeekPlans
-    .filter(plan => {
-      if (plan.status !== ApprovalStatus.Approved) return false;
-      const todaySchedule = plan.plan.find(day => day.date === todayString);
-      return todaySchedule?.status === PresenceStatus.Office;
-    })
-    .map(plan => plan.user);
-
-  const atHomeToday = currentWeekPlans
-    .filter(plan => {
-      if (plan.status !== ApprovalStatus.Approved) return false;
-      const todaySchedule = plan.plan.find(day => day.date === todayString);
-      return todaySchedule?.status === PresenceStatus.Home;
-    })
-    .map(plan => plan.user);
+  const hasAnyStatusToday = Object.keys(usersByStatus).length > 0;
 
   const isRangeMode = !!(startDate && endDate);
 
@@ -244,34 +246,35 @@ const MyTeamStatus: React.FC<MyTeamStatusProps> = ({ t, teamPlans }) => {
 
       {viewMode === 'daily' ? (
         <div>
-          <div className="mb-6">
-            <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-3">{t.in_office}</h4>
-            {inOfficeToday.length > 0 ? (
-              <div className="flex flex-wrap gap-4">
-                {inOfficeToday.map(user => (
-                  <div key={user.id} className="flex items-center" title={user.name}>
-                    <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full shadow"/>
-                  </div>
-                ))}
-              </div>
+            {hasAnyStatusToday ? (
+                PRESENCE_STATUS_OPTIONS.map(option => {
+                    const users = usersByStatus[option.value];
+                    if (!users || users.length === 0) return null;
+                    
+                    return (
+                        <div key={option.value} className="mb-6 last:mb-0">
+                            <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
+                                <span className={`w-3 h-3 rounded-full me-2 ${option.color}`}></span>
+                                {t[option.value]}
+                            </h4>
+                            <div className="flex flex-wrap gap-4">
+                                {users.map(user => (
+                                    <div key={user.id} className="flex items-center group relative">
+                                        <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full shadow ring-2 ring-transparent group-hover:ring-indigo-500 transition-all"/>
+                                        <div className="absolute bottom-full mb-2 hidden group-hover:block bg-gray-800 text-white text-xs rounded py-1 px-2 whitespace-nowrap z-10">
+                                            {user.name}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                })
             ) : (
-              <p className="text-sm text-gray-500 dark:text-gray-400">{t.no_one_in_office_team}</p>
+                <div className="text-center py-8">
+                    <p className="text-gray-500 dark:text-gray-400">{t.no_one_in_office_team}</p>
+                </div>
             )}
-          </div>
-          <div>
-            <h4 className="font-semibold text-gray-700 dark:text-gray-300 mb-3">{t.at_home}</h4>
-            {atHomeToday.length > 0 ? (
-              <div className="flex flex-wrap gap-4">
-                {atHomeToday.map(user => (
-                  <div key={user.id} className="flex items-center" title={user.name}>
-                    <img src={user.avatarUrl} alt={user.name} className="w-10 h-10 rounded-full shadow"/>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500 dark:text-gray-400">{t.no_one_at_home_team}</p>
-            )}
-          </div>
         </div>
       ) : (
         <>

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { User, UserRole } from '../types';
 
@@ -56,26 +57,31 @@ const ThemeSwitcher: React.FC<ThemeSwitcherProps> = ({ theme, setTheme }) => {
 
 interface RoleSwitcherProps {
   t: any;
+  user: User | null;
   userRole: UserRole;
   setUserRole: (role: UserRole) => void;
 }
 
-const RoleSwitcher: React.FC<RoleSwitcherProps> = ({ t, userRole, setUserRole }) => {
+const RoleSwitcher: React.FC<RoleSwitcherProps> = ({ t, user, userRole, setUserRole }) => {
   return (
     <div className="flex items-center bg-slate-200 dark:bg-slate-700 rounded-md">
-      {Object.values(UserRole).map((role) => (
-        <button
-          key={role}
-          onClick={() => setUserRole(role)}
-          className={`px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
-            userRole === role
-              ? 'bg-indigo-500 text-white'
-              : 'hover:bg-slate-300 dark:hover:bg-slate-600'
-          }`}
-        >
-          {t[role.toLowerCase().replace(' ', '_')]}
-        </button>
-      ))}
+      {Object.values(UserRole).map((role) => {
+        if (user && !user.roles.includes(role)) return null;
+        
+        return (
+            <button
+            key={role}
+            onClick={() => setUserRole(role)}
+            className={`px-3 py-2 rounded-md text-sm font-semibold transition-colors ${
+                userRole === role
+                ? 'bg-indigo-500 text-white'
+                : 'hover:bg-slate-300 dark:hover:bg-slate-600'
+            }`}
+            >
+            {t[role.toLowerCase().replace(' ', '_')]}
+            </button>
+        );
+      })}
     </div>
   );
 };
@@ -90,9 +96,10 @@ interface HeaderProps {
   onLogout: () => void;
   theme: 'light' | 'dark';
   setTheme: (theme: 'light' | 'dark') => void;
+  onProfileClick: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ t, user, language, setLanguage, userRole, setUserRole, onLogout, theme, setTheme }) => {
+const Header: React.FC<HeaderProps> = ({ t, user, language, setLanguage, userRole, setUserRole, onLogout, theme, setTheme, onProfileClick }) => {
   return (
     <header className="bg-white dark:bg-slate-800 shadow-md sticky top-0 z-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -104,15 +111,20 @@ const Header: React.FC<HeaderProps> = ({ t, user, language, setLanguage, userRol
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white ms-3">{t.title}</h1>
           </div>
           <div className="hidden md:block">
-            <RoleSwitcher t={t} userRole={userRole} setUserRole={setUserRole} />
+            <RoleSwitcher t={t} user={user} userRole={userRole} setUserRole={setUserRole} />
           </div>
           <div className="flex items-center space-x-4">
             <ThemeSwitcher theme={theme} setTheme={setTheme} />
             <LanguageSwitcher language={language} setLanguage={setLanguage} />
             {user && (
               <div className="flex items-center">
-                <span className="hidden sm:inline font-medium me-3">{user.name}</span>
-                <img className="h-10 w-10 rounded-full" src={user.avatarUrl} alt="User Avatar" />
+                <button 
+                  onClick={onProfileClick}
+                  className="flex items-center hover:bg-slate-100 dark:hover:bg-slate-700 px-2 py-1 rounded-md transition-colors group"
+                >
+                  <span className="hidden sm:inline font-medium me-3 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">{user.name}</span>
+                  <img className="h-10 w-10 rounded-full ring-2 ring-transparent group-hover:ring-indigo-500 transition-all" src={user.avatarUrl} alt="User Avatar" />
+                </button>
                 <button
                     onClick={onLogout}
                     className="ms-4 flex items-center text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400"
@@ -128,7 +140,7 @@ const Header: React.FC<HeaderProps> = ({ t, user, language, setLanguage, userRol
           </div>
         </div>
         <div className="md:hidden pb-4 flex justify-center">
-          <RoleSwitcher t={t} userRole={userRole} setUserRole={setUserRole} />
+          <RoleSwitcher t={t} user={user} userRole={userRole} setUserRole={setUserRole} />
         </div>
       </div>
     </header>

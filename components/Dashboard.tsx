@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
-import { PresencePlan, ApprovalStatus, PresenceStatus, User } from '../types';
+
+import React, { useState, useMemo, useEffect } from 'react';
+import { PresencePlan, ApprovalStatus, PresenceStatus, User, HRNotification } from '../types';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { PRESENCE_STATUS_OPTIONS } from '../constants';
 import HRHistoryView from './HRHistoryView';
@@ -12,6 +13,36 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ t, teamPlans: allPlans }) => {
   const [showHistory, setShowHistory] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [notifications, setNotifications] = useState<HRNotification[]>([]);
+
+  // Generate notifications based on plans needing attention (specifically Rejected plans)
+  useEffect(() => {
+      const alerts: HRNotification[] = [];
+      
+      allPlans.forEach(plan => {
+          if (plan.status === ApprovalStatus.Rejected) {
+              const id = `rej-${plan.user.id}-${plan.weekOf}`;
+              alerts.push({
+                  id: id,
+                  userId: plan.user.id,
+                  userName: plan.user.name,
+                  avatarUrl: plan.user.avatarUrl,
+                  message: t.notification_rejected.replace('{user}', plan.user.name).replace('{date}', plan.weekOf),
+                  date: new Date().toLocaleDateString(), // In real app, would be rejection date
+                  type: 'alert',
+                  isRead: false // Reset read status on refresh/load in this mock
+              });
+          }
+      });
+      
+      setNotifications(alerts);
+  }, [allPlans, t]);
+
+  const handleMarkAsRead = (id: string) => {
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+  };
+
+  const unreadCount = notifications.filter(n => !n.isRead).length;
 
   if (showHistory) {
     return <HRHistoryView t={t} onBack={() => setShowHistory(false)} />;
@@ -99,6 +130,44 @@ const Dashboard: React.FC<DashboardProps> = ({ t, teamPlans: allPlans }) => {
             >
                 {t.view_history}
             </button>
+        </div>
+
+        {/* Notification Panel */}
+        <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-500 me-2" viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M10 2a6 6 0 00-6 6v3.586l-1.707 1.707A1 1 0 003 15h14a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                    </svg>
+                    {t.notifications}
+                    {unreadCount > 0 && (
+                        <span className="ml-2 px-2 py-0.5 text-xs font-bold bg-red-500 text-white rounded-full">{unreadCount}</span>
+                    )}
+                </h3>
+            </div>
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {notifications.filter(n => !n.isRead).length > 0 ? (
+                    notifications.filter(n => !n.isRead).map(notification => (
+                        <div key={notification.id} className="bg-white dark:bg-slate-800 border-l-4 border-red-500 rounded-r-lg shadow-md p-4 flex items-start">
+                            <img src={notification.avatarUrl} alt={notification.userName} className="h-10 w-10 rounded-full me-3 flex-shrink-0" />
+                            <div className="flex-1">
+                                <p className="text-sm font-bold text-gray-900 dark:text-white">{notification.userName}</p>
+                                <p className="text-sm text-gray-600 dark:text-gray-300">{notification.message}</p>
+                                <button 
+                                    onClick={() => handleMarkAsRead(notification.id)}
+                                    className="mt-2 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
+                                >
+                                    {t.mark_as_read}
+                                </button>
+                            </div>
+                        </div>
+                    ))
+                ) : (
+                    <div className="col-span-full p-4 bg-gray-50 dark:bg-slate-700/30 rounded-lg text-center text-gray-500 dark:text-gray-400 text-sm">
+                        {t.no_notifications}
+                    </div>
+                )}
+            </div>
         </div>
 
         <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-lg mb-6 flex flex-col md:flex-row gap-4 items-center">
