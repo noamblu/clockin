@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { PresencePlan, ApprovalStatus } from '../types';
+import { PresencePlan, ApprovalStatus, MandatoryDate, WorkPolicy, StatusOption } from '../types';
 import WeeklyPlanner from './WeeklyPlanner';
 import MyTeamStatus from './MyTeamStatus';
 import PlanHistory from './PlanHistory';
@@ -15,9 +15,13 @@ interface EmployeeDashboardProps {
   currentDate: Date;
   onDateChange: (date: Date) => void;
   onCopyPreviousPlan: () => void;
+  mandatoryDates: MandatoryDate[];
+  workPolicy: WorkPolicy;
+  statusOptions: StatusOption[];
+  language: 'en' | 'he';
 }
 
-const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ t, employeePlan, onPlanUpdate, teamPlans, currentDate, onDateChange, onCopyPreviousPlan }) => {
+const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ t, employeePlan, onPlanUpdate, teamPlans, currentDate, onDateChange, onCopyPreviousPlan, mandatoryDates, workPolicy, statusOptions, language }) => {
   const [showHistory, setShowHistory] = useState(false);
   const [deadlineNotification, setDeadlineNotification] = useState<{type: 'warning' | 'error', title: string, msg: string} | null>(null);
 
@@ -26,17 +30,14 @@ const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ t, employeePlan, 
         const deadline = getSubmissionDeadline(employeePlan.weekOf);
         const now = new Date();
         
-        // Check if plan is not submitted or rejected
         if (employeePlan.status === ApprovalStatus.NotSubmitted || employeePlan.status === ApprovalStatus.Rejected) {
             if (now > deadline) {
-                // Overdue
                 setDeadlineNotification({
                     type: 'error',
                     title: t.plan_overdue,
                     msg: t.plan_overdue_msg
                 });
             } else {
-                // Check if approaching (e.g., within 24 hours)
                 const timeDiff = deadline.getTime() - now.getTime();
                 const hoursRemaining = timeDiff / (1000 * 3600);
                 
@@ -56,7 +57,6 @@ const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ t, employeePlan, 
     };
 
     checkDeadline();
-    // Set up an interval to check periodically (e.g., every minute)
     const interval = setInterval(checkDeadline, 60000);
     return () => clearInterval(interval);
 
@@ -69,6 +69,8 @@ const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ t, employeePlan, 
                 t={t} 
                 historicalPlans={MOCK_HISTORICAL_PLANS} 
                 onBack={() => setShowHistory(false)} 
+                statusOptions={statusOptions}
+                language={language}
             />
         </div>
     );
@@ -92,8 +94,12 @@ const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ t, employeePlan, 
             currentDate={currentDate}
             onDateChange={onDateChange}
             onCopyPreviousPlan={onCopyPreviousPlan}
+            mandatoryDates={mandatoryDates}
+            workPolicy={workPolicy}
+            statusOptions={statusOptions}
+            language={language}
         />
-        <MyTeamStatus t={t} teamPlans={teamPlans} />
+        <MyTeamStatus t={t} teamPlans={teamPlans} statusOptions={statusOptions} language={language} />
     </div>
   );
 };

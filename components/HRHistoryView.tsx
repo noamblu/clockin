@@ -1,14 +1,17 @@
+
 import React, { useState, useMemo } from 'react';
-import { PresencePlan, PresenceStatus } from '../types';
+import { PresencePlan, StatusOption } from '../types';
 import StatusBadge from './StatusBadge';
-import { PRESENCE_STATUS_OPTIONS, MOCK_ALL_HISTORICAL_PLANS } from '../constants';
+import { MOCK_ALL_HISTORICAL_PLANS, ICON_MAP, getStatusLabel } from '../constants';
 
 interface HRHistoryViewProps {
   t: any;
   onBack: () => void;
+  statusOptions: StatusOption[];
+  language: 'en' | 'he';
 }
 
-const HRHistoryView: React.FC<HRHistoryViewProps> = ({ t, onBack }) => {
+const HRHistoryView: React.FC<HRHistoryViewProps> = ({ t, onBack, statusOptions, language }) => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -58,7 +61,7 @@ const HRHistoryView: React.FC<HRHistoryViewProps> = ({ t, onBack }) => {
       <div className="space-y-4">
         {filteredPlans.length > 0 ? (
             filteredPlans.map((plan, index) => (
-                <HistoricalPlanRow key={`${plan.user.id}-${plan.weekOf}-${index}`} plan={plan} t={t} />
+                <HistoricalPlanRow key={`${plan.user.id}-${plan.weekOf}-${index}`} plan={plan} t={t} statusOptions={statusOptions} language={language} />
             ))
         ) : (
             <div className="text-center py-10">
@@ -70,7 +73,7 @@ const HRHistoryView: React.FC<HRHistoryViewProps> = ({ t, onBack }) => {
   );
 };
 
-const HistoricalPlanRow: React.FC<{ plan: PresencePlan; t: any }> = ({ plan, t }) => {
+const HistoricalPlanRow: React.FC<{ plan: PresencePlan; t: any, statusOptions: StatusOption[], language: 'en' | 'he' }> = ({ plan, t, statusOptions, language }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -99,7 +102,7 @@ const HistoricalPlanRow: React.FC<{ plan: PresencePlan; t: any }> = ({ plan, t }
               <div key={day.date} className="bg-white dark:bg-slate-700 rounded p-3 shadow-sm">
                 <p className="font-bold text-gray-800 dark:text-gray-200">{day.day}</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{day.date}</p>
-                <DayStatusDisplay status={day.status} t={t} />
+                <DayStatusDisplay status={day.status} t={t} statusOptions={statusOptions} language={language} />
               </div>
             ))}
           </div>
@@ -109,15 +112,15 @@ const HistoricalPlanRow: React.FC<{ plan: PresencePlan; t: any }> = ({ plan, t }
   );
 };
 
-const DayStatusDisplay: React.FC<{ status: PresenceStatus | null, t: any }> = ({ status, t }) => {
+const DayStatusDisplay: React.FC<{ status: string | null, t: any, statusOptions: StatusOption[], language: 'en' | 'he' }> = ({ status, t, statusOptions, language }) => {
     if (!status) return null;
-    const option = PRESENCE_STATUS_OPTIONS.find(opt => opt.value === status);
+    const option = statusOptions.find(opt => opt.value === status);
     if (!option) return null;
 
     return (
         <div className="flex items-center">
-            <span className={`w-5 h-5 flex items-center justify-center text-white rounded me-2 ${option.color}`}>{React.cloneElement(option.icon, {className: "w-3 h-3"})}</span>
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t[status]}</span>
+            <span className={`w-5 h-5 flex items-center justify-center text-white rounded me-2 ${option.color}`}>{React.cloneElement(ICON_MAP[option.icon], {className: "w-3 h-3"})}</span>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{getStatusLabel(option, language)}</span>
         </div>
     )
 }

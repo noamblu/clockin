@@ -31,6 +31,7 @@ const LanguageSwitcher: React.FC<{ language: 'en' | 'he', setLanguage: (lang: 'e
 const Register: React.FC<RegisterProps> = ({ onRegister, onSwitchToLogin, t, language, setLanguage }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -40,6 +41,8 @@ const Register: React.FC<RegisterProps> = ({ onRegister, onSwitchToLogin, t, lan
         // Here we simulate creating a user object
         onRegister({
             name,
+            email,
+            phoneNumber
             // Use email as ID for simplicity in mock, or generate one
             // avatarUrl is defaulted in App.tsx or here
         });
@@ -81,6 +84,16 @@ const Register: React.FC<RegisterProps> = ({ onRegister, onSwitchToLogin, t, lan
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     placeholder={t.email}
+                />
+            </div>
+             <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t.phone_number}</label>
+                <input 
+                    type="tel" 
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder={t.phone_number}
                 />
             </div>
              <div>

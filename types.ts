@@ -22,10 +22,23 @@ export enum UserRole {
   Admin = 'Admin',
 }
 
+export type IconName = 'office' | 'home' | 'sun' | 'heart' | 'truck' | 'question' | 'briefcase' | 'user' | 'star' | 'coffee';
+
+export interface StatusOption {
+    id: string;
+    value: string; // This acts as the enum key
+    label: string; // Display text (EN)
+    labelHe?: string; // Display text (HE)
+    icon: IconName;
+    color: string; // Tailwind bg color class
+    isDefault?: boolean;
+}
+
 export interface DailyPlan {
   day: string;
   date: string;
-  status: PresenceStatus | null;
+  status: string | null; // Changed from PresenceStatus enum to string to support dynamic statuses
+  note?: string;
 }
 
 export interface PresencePlan {
@@ -34,6 +47,7 @@ export interface PresencePlan {
   status: ApprovalStatus;
   plan: DailyPlan[];
   submittedAt?: Date;
+  violationReason?: string; 
 }
  
 export interface Team {
@@ -49,6 +63,7 @@ export interface User {
   roles: UserRole[];
   teamId?: string;
   email?: string;
+  phoneNumber?: string;
 }
 
 export interface HRNotification {
@@ -60,6 +75,19 @@ export interface HRNotification {
   date: string;
   type: 'alert' | 'warning' | 'info';
   isRead: boolean;
+}
+
+export interface MandatoryDate {
+  id: string;
+  date: string;
+  status: string; // Dynamic string
+  description: string;
+  teamIds?: string[]; 
+}
+
+export interface WorkPolicy {
+    minOfficeDays: number;
+    maxHomeDays: number;
 }
 
 declare global {

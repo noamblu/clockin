@@ -63,10 +63,14 @@ interface RoleSwitcherProps {
 }
 
 const RoleSwitcher: React.FC<RoleSwitcherProps> = ({ t, user, userRole, setUserRole }) => {
+  // Check if the user has the Admin role
+  const isAdmin = user?.roles.includes(UserRole.Admin);
+
   return (
     <div className="flex items-center bg-slate-200 dark:bg-slate-700 rounded-md">
       {Object.values(UserRole).map((role) => {
-        if (user && !user.roles.includes(role)) return null;
+        // Allow access if user has the specific role OR is an Admin
+        if (user && !user.roles.includes(role) && !isAdmin) return null;
         
         return (
             <button
@@ -97,14 +101,19 @@ interface HeaderProps {
   theme: 'light' | 'dark';
   setTheme: (theme: 'light' | 'dark') => void;
   onProfileClick: () => void;
+  onLogoClick: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ t, user, language, setLanguage, userRole, setUserRole, onLogout, theme, setTheme, onProfileClick }) => {
+const Header: React.FC<HeaderProps> = ({ t, user, language, setLanguage, userRole, setUserRole, onLogout, theme, setTheme, onProfileClick, onLogoClick }) => {
   return (
     <header className="bg-white dark:bg-slate-800 shadow-md sticky top-0 z-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <div className="flex items-center">
+          <div 
+            className="flex items-center cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={onLogoClick}
+            title="Go to Employee Dashboard"
+          >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.415L11 9.586V6z" clipRule="evenodd" />
             </svg>

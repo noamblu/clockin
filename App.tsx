@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { UserRole, PresencePlan, User, ApprovalStatus } from './types';
-import { TRANSLATIONS, MOCK_EMPLOYEE_PLAN, MOCK_TEAM_PLANS, MOCK_ALL_HISTORICAL_PLANS, MOCK_HISTORICAL_PLANS, MOCK_USER, MOCK_ALL_USERS, getWeekDays } from './constants';
+import React, { useState, useEffect, useCallback } from 'react';
+import { UserRole, PresencePlan, User, ApprovalStatus, MandatoryDate, WorkPolicy, Team, StatusOption } from './types';
+import { TRANSLATIONS, MOCK_EMPLOYEE_PLAN, MOCK_TEAM_PLANS, MOCK_HISTORICAL_PLANS, MOCK_USER, MOCK_ALL_USERS, getWeekDays, MOCK_MANDATORY_DATES, MOCK_WORK_POLICY, MOCK_TEAMS, INITIAL_STATUS_OPTIONS } from './constants';
 import Header from './components/Header';
 import EmployeeDashboard from './components/EmployeeDashboard';
 import TeamView from './components/TeamView';
@@ -9,28 +9,46 @@ import Dashboard from './components/Dashboard';
 import AdminView from './components/AdminView';
 import NotificationBanner from './components/NotificationBanner';
 import Login from './components/Login';
+import Register from './components/Register';
 import UserProfile from './components/UserProfile';
+
+const getInitialTheme = (): 'light' | 'dark' => {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const storedPrefs = window.localStorage.getItem('theme');
+    if (typeof storedPrefs === 'string') {
+      return storedPrefs as 'light' | 'dark';
+    }
+    const userMedia = window.matchMedia('(prefers-color-scheme: dark)');
+    if (userMedia.matches) {
+      return 'dark';
+    }
+  }
+  return 'light';
+};
 
 const App: React.FC = () => {
   const [language, setLanguage] = useState<'en' | 'he'>('en');
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [theme, setTheme] = useState<'light' | 'dark'>(getInitialTheme);
   const [userRole, setUserRole] = useState<UserRole>(UserRole.Employee);
   
-  // Manage a map of plans keyed by the week starting date string
   const [employeePlansMap, setEmployeePlansMap] = useState<Record<string, PresencePlan>>({
     [MOCK_EMPLOYEE_PLAN.weekOf]: MOCK_EMPLOYEE_PLAN
   });
   
-  // Track the current date being viewed in the planner
   const [currentPlannerDate, setCurrentPlannerDate] = useState(new Date());
 
   const [teamPlans, setTeamPlans] = useState<PresencePlan[]>(MOCK_TEAM_PLANS);
   const [showReminder, setShowReminder] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [showProfile, setShowProfile] = useState(false);
   
   const [allUsers, setAllUsers] = useState<User[]>(MOCK_ALL_USERS);
+  const [mandatoryDates, setMandatoryDates] = useState<MandatoryDate[]>(MOCK_MANDATORY_DATES);
+  const [workPolicy, setWorkPolicy] = useState<WorkPolicy>(MOCK_WORK_POLICY);
+  const [teams, setTeams] = useState<Team[]>(MOCK_TEAMS);
+  const [statusOptions, setStatusOptions] = useState<StatusOption[]>(INITIAL_STATUS_OPTIONS);
 
   const t = TRANSLATIONS[language];
 
@@ -40,15 +58,15 @@ const App: React.FC = () => {
   }, [language]);
 
   useEffect(() => {
+    const root = window.document.documentElement;
     if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
+      root.classList.add('dark');
     } else {
-      document.documentElement.classList.remove('dark');
+      root.classList.remove('dark');
     }
+    localStorage.setItem('theme', theme);
   }, [theme]);
 
-
-  // Simulate reminder notification
   useEffect(() => {
     if (!isAuthenticated) return;
     const timer = setTimeout(() => {
@@ -61,12 +79,9 @@ const App: React.FC = () => {
   
   const handleLogin = (googleUser?: Partial<User>) => {
     if (googleUser) {
-        // Handle Google SSO Login
-        // Check if user exists in our "database" (allUsers) by email or ID
         let existingUser = allUsers.find(u => u.email === googleUser.email);
         
         if (!existingUser) {
-            // If not exists, create a new user entry (Simulation)
             existingUser = {
                 id: googleUser.id || `u${Date.now()}`,
                 name: googleUser.name || 'Google User',
@@ -81,7 +96,6 @@ const App: React.FC = () => {
         setUserRole(existingUser.roles[0]);
         setIsAuthenticated(true);
     } else {
-        // Default Mock Login
         const loggedInUser: User = {
             id: 'u99',
             name: 'Galia Levi',
@@ -95,10 +109,31 @@ const App: React.FC = () => {
     }
   };
 
+  const handleRegister = (newUser: Partial<User>) => {
+      const user: User = {
+          id: `u${Date.now()}`,
+          name: newUser.name || 'New User',
+          email: newUser.email,
+          avatarUrl: 'https://i.pravatar.cc/150?u=default',
+          roles: [UserRole.Employee]
+      };
+      setAllUsers([...allUsers, user]);
+      setCurrentUser(user);
+      setUserRole(UserRole.Employee);
+      setIsAuthenticated(true);
+      setIsRegistering(false);
+  };
+
   const handleLogout = () => {
     setCurrentUser(null);
     setIsAuthenticated(false);
     setShowProfile(false);
+    setIsRegistering(false);
+  };
+
+  const handleLogoClick = () => {
+      setShowProfile(false);
+      setUserRole(UserRole.Employee);
   };
 
   const handlePlanUpdate = useCallback((updatedPlan: PresencePlan) => {
@@ -114,6 +149,27 @@ const App: React.FC = () => {
 
   const handleUserUpdate = (updatedUser: User) => {
       setCurrentUser(updatedUser);
+      setAllUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+  };
+
+  const handleAddMandatoryDate = (rule: MandatoryDate) => {
+    setMandatoryDates([...mandatoryDates, rule]);
+  };
+
+  const handleDeleteMandatoryDate = (id: string) => {
+    setMandatoryDates(mandatoryDates.filter(d => d.id !== id));
+  };
+
+  const handleUpdateWorkPolicy = (newPolicy: WorkPolicy) => {
+      setWorkPolicy(newPolicy);
+  };
+
+  const handleAddStatus = (status: StatusOption) => {
+    setStatusOptions([...statusOptions, status]);
+  };
+
+  const handleDeleteStatus = (id: string) => {
+    setStatusOptions(statusOptions.filter(s => s.id !== id));
   };
 
   const handleCopyPreviousPlan = useCallback(() => {
@@ -124,7 +180,6 @@ const App: React.FC = () => {
     
     let sourcePlan = employeePlansMap[prevWeekOf];
     
-    // Fallback to mock history if not in local state
     if (!sourcePlan) {
         const userIdToCheck = currentUser?.id || MOCK_USER.id;
         sourcePlan = MOCK_HISTORICAL_PLANS.find(p => p.weekOf === prevWeekOf && p.user.id === userIdToCheck);
@@ -154,89 +209,127 @@ const App: React.FC = () => {
     }
   }, [currentPlannerDate, employeePlansMap, currentUser, t, handlePlanUpdate]);
 
-  const getCurrentWeekPlan = useMemo(() => {
-      const tempWeekDays = getWeekDays(currentPlannerDate);
-      const weekOfStr = tempWeekDays[0].date;
-
-      if (employeePlansMap[weekOfStr]) {
-          return employeePlansMap[weekOfStr];
-      }
-
-      return {
-          user: currentUser || MOCK_EMPLOYEE_PLAN.user,
-          weekOf: weekOfStr,
-          status: ApprovalStatus.NotSubmitted,
-          plan: tempWeekDays,
-      };
-  }, [currentPlannerDate, employeePlansMap, currentUser]);
-
-  const renderContent = () => {
-    if (showProfile && currentUser) {
-        return <UserProfile t={t} user={currentUser} onUpdate={handleUserUpdate} onClose={() => setShowProfile(false)} />;
-    }
-
-    switch (userRole) {
-      case UserRole.Employee:
-        const teamUserIds = MOCK_TEAM_PLANS.map(p => p.user.id);
-        const allTeamHistoricalPlans = MOCK_ALL_HISTORICAL_PLANS.filter(p => teamUserIds.includes(p.user.id));
-        const allTeamPlansForDashboard = [...teamPlans, ...allTeamHistoricalPlans];
-        return (
-          <EmployeeDashboard
-            t={t}
-            employeePlan={getCurrentWeekPlan}
-            onPlanUpdate={handlePlanUpdate}
-            teamPlans={allTeamPlansForDashboard}
-            currentDate={currentPlannerDate}
-            onDateChange={setCurrentPlannerDate}
-            onCopyPreviousPlan={handleCopyPreviousPlan}
-          />
-        );
-      case UserRole.TeamLead:
-        return <TeamView t={t} teamPlans={teamPlans} onTeamPlanUpdate={handleTeamPlanUpdate} />;
-      case UserRole.HR:
-        return <Dashboard t={t} teamPlans={[...teamPlans, ...MOCK_ALL_HISTORICAL_PLANS]} />;
-      case UserRole.Admin:
-        return <AdminView t={t} />;
-      default:
-        return null;
-    }
+  // Derived state for current week's plan view
+  const currentWeekDays = getWeekDays(currentPlannerDate);
+  const currentWeekOf = currentWeekDays[0].date;
+  const currentEmployeePlan = employeePlansMap[currentWeekOf] || {
+      user: currentUser || MOCK_USER,
+      weekOf: currentWeekOf,
+      status: ApprovalStatus.NotSubmitted,
+      plan: currentWeekDays
   };
 
-  if (!isAuthenticated) {
-    return (
-        <Login 
-            onLogin={handleLogin} 
-            t={t} 
-            language={language} 
-            setLanguage={setLanguage}
-        />
-    );
-  }
-
   return (
-    <div className="min-h-screen text-gray-800 dark:text-gray-200 transition-colors duration-300">
-      <Header
-        t={t}
-        user={currentUser}
-        language={language}
-        setLanguage={setLanguage}
-        userRole={userRole}
-        setUserRole={setUserRole}
-        onLogout={handleLogout}
-        theme={theme}
-        setTheme={setTheme}
-        onProfileClick={() => setShowProfile(!showProfile)}
-      />
-      <main className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
-        {!showProfile && showReminder && (
-          <NotificationBanner 
-            title={t.reminder_title} 
-            message={t.reminder_body} 
-            onClose={() => setShowReminder(false)} 
-          />
-        )}
-        {renderContent()}
-      </main>
+    <div className={`min-h-screen bg-slate-100 dark:bg-slate-900 transition-colors duration-200 ${theme}`}>
+      {!isAuthenticated ? (
+         isRegistering ? (
+             <Register 
+                onRegister={handleRegister} 
+                onSwitchToLogin={() => setIsRegistering(false)} 
+                t={t}
+                language={language}
+                setLanguage={setLanguage}
+             />
+         ) : (
+            <Login 
+                onLogin={handleLogin} 
+                t={t} 
+                language={language}
+                setLanguage={setLanguage}
+            />
+         )
+      ) : (
+          <>
+            <Header 
+                t={t} 
+                user={currentUser} 
+                language={language} 
+                setLanguage={setLanguage} 
+                userRole={userRole} 
+                setUserRole={setUserRole} 
+                onLogout={handleLogout}
+                theme={theme}
+                setTheme={setTheme}
+                onProfileClick={() => setShowProfile(true)}
+                onLogoClick={handleLogoClick}
+            />
+            
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {showReminder && (
+                    <NotificationBanner 
+                        title={t.reminder_title} 
+                        message={t.reminder_body} 
+                        onClose={() => setShowReminder(false)} 
+                    />
+                )}
+                
+                {showProfile && currentUser ? (
+                    <UserProfile 
+                        t={t} 
+                        user={currentUser} 
+                        onUpdate={handleUserUpdate} 
+                        onClose={() => setShowProfile(false)} 
+                    />
+                ) : (
+                    <>
+                        {userRole === UserRole.Employee && (
+                            <EmployeeDashboard 
+                                t={t} 
+                                employeePlan={currentEmployeePlan} 
+                                onPlanUpdate={handlePlanUpdate}
+                                teamPlans={teamPlans}
+                                currentDate={currentPlannerDate}
+                                onDateChange={setCurrentPlannerDate}
+                                onCopyPreviousPlan={handleCopyPreviousPlan}
+                                mandatoryDates={mandatoryDates}
+                                workPolicy={workPolicy}
+                                statusOptions={statusOptions}
+                                language={language}
+                            />
+                        )}
+                        {userRole === UserRole.TeamLead && (
+                             <TeamView 
+                                t={t} 
+                                teamPlans={teamPlans} 
+                                onTeamPlanUpdate={handleTeamPlanUpdate} 
+                                mandatoryDates={mandatoryDates}
+                                onAddMandatoryDate={handleAddMandatoryDate}
+                                onDeleteMandatoryDate={handleDeleteMandatoryDate}
+                                teams={teams}
+                                currentUser={currentUser}
+                                statusOptions={statusOptions}
+                                language={language}
+                            />
+                        )}
+                        {userRole === UserRole.HR && (
+                             <Dashboard 
+                                t={t} 
+                                teamPlans={[...teamPlans, ...MOCK_HISTORICAL_PLANS]} 
+                                teams={teams}
+                                users={allUsers}
+                                statusOptions={statusOptions}
+                                language={language}
+                            />
+                        )}
+                        {userRole === UserRole.Admin && (
+                             <AdminView 
+                                t={t} 
+                                mandatoryDates={mandatoryDates}
+                                onAddMandatoryDate={handleAddMandatoryDate}
+                                onDeleteMandatoryDate={handleDeleteMandatoryDate}
+                                workPolicy={workPolicy}
+                                onUpdateWorkPolicy={handleUpdateWorkPolicy}
+                                statusOptions={statusOptions}
+                                onAddStatus={handleAddStatus}
+                                onDeleteStatus={handleDeleteStatus}
+                                language={language}
+                            />
+                        )}
+                    </>
+                )}
+            </main>
+          </>
+      )}
     </div>
   );
 };

@@ -1,13 +1,23 @@
 
 import React, { useState } from 'react';
-import { MOCK_ALL_USERS, MOCK_AUDIT_LOGS, MOCK_TEAMS } from '../constants';
-import { User, UserRole, Team } from '../types';
+import { MOCK_ALL_USERS, MOCK_AUDIT_LOGS, MOCK_TEAMS, AVAILABLE_COLORS, ICON_MAP, getStatusLabel } from '../constants';
+import { User, UserRole, Team, MandatoryDate, WorkPolicy, StatusOption, IconName } from '../types';
+import MandatoryDatesManagement from './MandatoryDatesManagement';
 
 interface AdminViewProps {
   t: any;
+  mandatoryDates: MandatoryDate[];
+  onAddMandatoryDate: (rule: MandatoryDate) => void;
+  onDeleteMandatoryDate: (id: string) => void;
+  workPolicy: WorkPolicy;
+  onUpdateWorkPolicy: (policy: WorkPolicy) => void;
+  statusOptions: StatusOption[];
+  onAddStatus: (status: StatusOption) => void;
+  onDeleteStatus: (id: string) => void;
+  language: 'en' | 'he';
 }
 
-const AdminView: React.FC<AdminViewProps> = ({ t }) => {
+const AdminView: React.FC<AdminViewProps> = ({ t, mandatoryDates, onAddMandatoryDate, onDeleteMandatoryDate, workPolicy, onUpdateWorkPolicy, statusOptions, onAddStatus, onDeleteStatus, language }) => {
   const [users, setUsers] = useState<User[]>(MOCK_ALL_USERS);
   const [teams, setTeams] = useState<Team[]>(MOCK_TEAMS);
 
@@ -58,21 +68,158 @@ const AdminView: React.FC<AdminViewProps> = ({ t }) => {
     ));
   };
 
-  const handleAddUser = (name: string, email: string) => {
+  const handleAddUser = (name: string, email: string, phoneNumber?: string) => {
       const newUser: User = {
           id: `u${Date.now()}`,
           name,
           email,
+          phoneNumber,
           avatarUrl: `https://i.pravatar.cc/150?u=${Date.now()}`,
           roles: [UserRole.Employee]
       };
       setUsers(prev => [...prev, newUser]);
   };
 
+  const handlePolicyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const { name, value } = e.target;
+      onUpdateWorkPolicy({
+          ...workPolicy,
+          [name]: parseInt(value, 10) || 0
+      });
+  };
+
+  // Status Configuration State
+  const [newStatusLabel, setNewStatusLabel] = useState('');
+  const [newStatusLabelHe, setNewStatusLabelHe] = useState('');
+  const [newStatusColor, setNewStatusColor] = useState(AVAILABLE_COLORS[0]);
+  const [newStatusIcon, setNewStatusIcon] = useState<IconName>('office');
+
+  const handleAddNewStatus = () => {
+      if (newStatusLabel) {
+          const newStatus: StatusOption = {
+              id: `s${Date.now()}`,
+              value: newStatusLabel, // Using label as value for simplicity in this mock context
+              label: newStatusLabel,
+              labelHe: newStatusLabelHe,
+              color: newStatusColor,
+              icon: newStatusIcon
+          };
+          onAddStatus(newStatus);
+          setNewStatusLabel('');
+          setNewStatusLabelHe('');
+      }
+  };
+
   return (
     <div>
       <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">{t.admin_panel}</h2>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+         <div className="lg:col-span-2">
+             <Card title={t.status_configuration}>
+                <div className="mb-6 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-md">
+                    <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">{t.add_status}</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                        <div>
+                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{t.status_label}</label>
+                            <input 
+                                type="text" 
+                                value={newStatusLabel} 
+                                onChange={(e) => setNewStatusLabel(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm"
+                                placeholder="e.g. Client Site"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{t.status_label_he}</label>
+                            <input 
+                                type="text" 
+                                value={newStatusLabelHe} 
+                                onChange={(e) => setNewStatusLabelHe(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm"
+                                placeholder="לדוגמה: אצל לקוח"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{t.status_color}</label>
+                            <select 
+                                value={newStatusColor}
+                                onChange={(e) => setNewStatusColor(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm"
+                            >
+                                {AVAILABLE_COLORS.map(color => (
+                                    <option key={color} value={color} className={color.replace('bg-', 'text-')}>
+                                        {color.replace('bg-', '').replace('-500', '')}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                         <div>
+                            <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{t.status_icon}</label>
+                            <select 
+                                value={newStatusIcon}
+                                onChange={(e) => setNewStatusIcon(e.target.value as IconName)}
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm"
+                            >
+                                {Object.keys(ICON_MAP).map(icon => (
+                                    <option key={icon} value={icon}>{icon}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="flex items-center gap-2">
+                             <div className={`w-10 h-10 rounded-md flex items-center justify-center text-white shadow-sm ${newStatusColor}`}>
+                                {React.cloneElement(ICON_MAP[newStatusIcon], { className: "w-6 h-6" })}
+                             </div>
+                            <button 
+                                onClick={handleAddNewStatus}
+                                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm h-10"
+                            >
+                                {t.add_status}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {statusOptions.map(option => (
+                        <div key={option.id} className="flex items-center justify-between p-3 bg-white dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600 shadow-sm">
+                            <div className="flex items-center">
+                                <div className={`w-8 h-8 flex items-center justify-center text-white rounded-md shadow-sm me-3 ${option.color}`}>
+                                    {React.cloneElement(ICON_MAP[option.icon], { className: "w-5 h-5" })}
+                                </div>
+                                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {getStatusLabel(option, language)}
+                                </span>
+                            </div>
+                            {!option.isDefault && (
+                                <button 
+                                    onClick={() => onDeleteStatus(option.id)}
+                                    className="text-red-400 hover:text-red-600 p-1"
+                                    title="Delete Status"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                                    </svg>
+                                </button>
+                            )}
+                        </div>
+                    ))}
+                </div>
+             </Card>
+         </div>
+
+        <div className="lg:col-span-2">
+            <Card title={t.mandatory_dates}>
+                <MandatoryDatesManagement 
+                    t={t}
+                    teams={teams}
+                    mandatoryDates={mandatoryDates}
+                    onAdd={onAddMandatoryDate}
+                    onDelete={onDeleteMandatoryDate}
+                    statusOptions={statusOptions}
+                    language={language}
+                />
+            </Card>
+        </div>
         <div className="lg:col-span-2">
             <Card title={t.team_management}>
                 <TeamManagementTable 
@@ -99,14 +246,47 @@ const AdminView: React.FC<AdminViewProps> = ({ t }) => {
             </Card>
         </div>
         <Card title={t.system_settings}>
-           <div className="space-y-4">
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{t.submission_deadline}</label>
-                    <input type="text" value="Thursday 15:00" readOnly className="mt-1 block w-full bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+           <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{t.submission_deadline}</label>
+                        <input type="text" value="Thursday 15:00" readOnly className="mt-1 block w-full bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+                    </div>
+                    <div>
+                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Manager Approval Deadline</label>
+                        <input type="text" value="Friday 12:00" readOnly className="mt-1 block w-full bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+                    </div>
                 </div>
-                <div>
-                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Manager Approval Deadline</label>
-                    <input type="text" value="Friday 12:00" readOnly className="mt-1 block w-full bg-gray-100 dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+                
+                <div className="border-t border-gray-200 dark:border-gray-600 pt-4">
+                    <h4 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-1">{t.work_policy}</h4>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{t.work_policy_description}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{t.min_office_days}</label>
+                            <input 
+                                type="number" 
+                                name="minOfficeDays"
+                                value={workPolicy.minOfficeDays} 
+                                onChange={handlePolicyChange}
+                                min="0"
+                                max="5"
+                                className="mt-1 block w-full bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" 
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">{t.max_home_days}</label>
+                            <input 
+                                type="number" 
+                                name="maxHomeDays"
+                                value={workPolicy.maxHomeDays} 
+                                onChange={handlePolicyChange}
+                                min="0"
+                                max="5"
+                                className="mt-1 block w-full bg-white dark:bg-slate-700 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" 
+                            />
+                        </div>
+                    </div>
                 </div>
            </div>
         </Card>
@@ -274,7 +454,7 @@ interface UserManagementTableProps {
     onRoleUpdate: (userId: string, newRoles: UserRole[]) => void;
     onTeamAssignment: (userId: string, teamId: string | undefined) => void;
     onDeleteUser: (userId: string) => void;
-    onAddUser: (name: string, email: string) => void;
+    onAddUser: (name: string, email: string, phoneNumber?: string) => void;
 }
 
 const UserManagementTable: React.FC<UserManagementTableProps> = ({ t, users, teams, onRoleUpdate, onTeamAssignment, onDeleteUser, onAddUser }) => {
@@ -286,6 +466,7 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({ t, users, tea
     // New user state
     const [newUserName, setNewUserName] = useState('');
     const [newUserEmail, setNewUserEmail] = useState('');
+    const [newUserPhone, setNewUserPhone] = useState('');
 
     const [pendingTeamAssignment, setPendingTeamAssignment] = useState<{userId: string, teamId: string | undefined} | null>(null);
     const [isTeamConfirmOpen, setIsTeamConfirmOpen] = useState(false);
@@ -350,12 +531,24 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({ t, users, tea
 
     const handleCreateUser = () => {
         if (newUserName && newUserEmail) {
-            onAddUser(newUserName, newUserEmail);
+            onAddUser(newUserName, newUserEmail, newUserPhone);
             setNewUserName('');
             setNewUserEmail('');
+            setNewUserPhone('');
         } else {
             alert('Please fill in name and email');
         }
+    };
+
+    const handleWhatsApp = (phoneNumber: string, userName: string) => {
+        const cleanNumber = phoneNumber.replace(/\D/g, '');
+        let finalNumber = cleanNumber;
+        if (cleanNumber.startsWith('0')) {
+            finalNumber = '972' + cleanNumber.substring(1);
+        }
+        const message = `Hi ${userName}, ...`;
+        const url = `https://wa.me/${finalNumber}?text=${encodeURIComponent(message)}`;
+        window.open(url, '_blank');
     };
 
     const filteredUsers = users.filter(user => 
@@ -366,8 +559,8 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({ t, users, tea
     <div>
         <div className="mb-6 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-md">
             <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">{t.add_user}</h4>
-            <div className="flex flex-col sm:flex-row gap-4 items-end">
-                 <div className="flex-1 w-full">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+                 <div>
                     <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{t.full_name}</label>
                     <input 
                         type="text" 
@@ -377,7 +570,7 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({ t, users, tea
                         placeholder={t.full_name}
                     />
                 </div>
-                <div className="flex-1 w-full">
+                <div>
                     <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{t.email}</label>
                     <input 
                         type="email" 
@@ -387,9 +580,19 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({ t, users, tea
                         placeholder={t.email}
                     />
                 </div>
+                <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{t.phone_number}</label>
+                    <input 
+                        type="tel" 
+                        value={newUserPhone} 
+                        onChange={(e) => setNewUserPhone(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-slate-600 rounded-md shadow-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white text-sm"
+                        placeholder={t.phone_number}
+                    />
+                </div>
                 <button 
                     onClick={handleCreateUser}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm"
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm h-[38px]"
                 >
                     {t.add_user}
                 </button>
@@ -433,6 +636,7 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({ t, users, tea
                                     <div className="ms-4">
                                         <div className="text-sm font-medium text-gray-900 dark:text-white">{user.name}</div>
                                         {user.email && <div className="text-xs text-gray-500 dark:text-gray-400">{user.email}</div>}
+                                        {user.phoneNumber && <div className="text-xs text-gray-500 dark:text-gray-400">{user.phoneNumber}</div>}
                                     </div>
                                 </div>
                             </td>
@@ -497,6 +701,17 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({ t, users, tea
                                         >
                                             {t.edit_roles}
                                         </button>
+                                        {user.phoneNumber && (
+                                            <button
+                                                onClick={() => handleWhatsApp(user.phoneNumber!, user.name)}
+                                                className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                                                title={t.send_whatsapp}
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                                                    <path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592zm3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.729.729 0 0 0-.529.247c-.182.198-.691.677-.691 1.654 0 .977.71 1.916.81 2.049.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232z"/>
+                                                </svg>
+                                            </button>
+                                        )}
                                         <button
                                             onClick={() => handleDeleteClick(user.id)}
                                             className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"

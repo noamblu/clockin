@@ -1,15 +1,18 @@
+
 import React, { useState } from 'react';
-import { PresencePlan, DailyPlan, PresenceStatus } from '../types';
+import { PresencePlan, StatusOption } from '../types';
 import StatusBadge from './StatusBadge';
-import { PRESENCE_STATUS_OPTIONS, ICONS } from '../constants';
+import { ICON_MAP, getStatusLabel } from '../constants';
 
 interface PlanHistoryProps {
   t: any;
   historicalPlans: PresencePlan[];
   onBack: () => void;
+  statusOptions: StatusOption[];
+  language: 'en' | 'he';
 }
 
-const PlanHistory: React.FC<PlanHistoryProps> = ({ t, historicalPlans, onBack }) => {
+const PlanHistory: React.FC<PlanHistoryProps> = ({ t, historicalPlans, onBack, statusOptions, language }) => {
   return (
     <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-6">
       <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
@@ -23,14 +26,14 @@ const PlanHistory: React.FC<PlanHistoryProps> = ({ t, historicalPlans, onBack })
       </div>
       <div className="space-y-4">
         {historicalPlans.map((plan) => (
-          <HistoricalPlanCard key={plan.weekOf} plan={plan} t={t} />
+          <HistoricalPlanCard key={plan.weekOf} plan={plan} t={t} statusOptions={statusOptions} language={language} />
         ))}
       </div>
     </div>
   );
 };
 
-const HistoricalPlanCard: React.FC<{ plan: PresencePlan; t: any }> = ({ plan, t }) => {
+const HistoricalPlanCard: React.FC<{ plan: PresencePlan; t: any, statusOptions: StatusOption[], language: 'en' | 'he' }> = ({ plan, t, statusOptions, language }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -53,7 +56,7 @@ const HistoricalPlanCard: React.FC<{ plan: PresencePlan; t: any }> = ({ plan, t 
               <div key={day.date} className="bg-white dark:bg-slate-700 rounded p-3 shadow-sm">
                 <p className="font-bold text-gray-800 dark:text-gray-200">{day.day}</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{day.date}</p>
-                <DayStatusDisplay status={day.status} t={t} />
+                <DayStatusDisplay status={day.status} t={t} statusOptions={statusOptions} language={language} />
               </div>
             ))}
           </div>
@@ -63,16 +66,16 @@ const HistoricalPlanCard: React.FC<{ plan: PresencePlan; t: any }> = ({ plan, t 
   );
 };
 
-const DayStatusDisplay: React.FC<{ status: PresenceStatus | null, t: any }> = ({ status, t }) => {
+const DayStatusDisplay: React.FC<{ status: string | null, t: any, statusOptions: StatusOption[], language: 'en' | 'he' }> = ({ status, t, statusOptions, language }) => {
     if (!status) return null;
 
-    const option = PRESENCE_STATUS_OPTIONS.find(opt => opt.value === status);
+    const option = statusOptions.find(opt => opt.value === status);
     if (!option) return null;
 
     return (
         <div className="flex items-center">
-            <span className={`w-5 h-5 flex items-center justify-center text-white rounded me-2 ${option.color}`}>{React.cloneElement(option.icon, {className: "w-3 h-3"})}</span>
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t[status]}</span>
+            <span className={`w-5 h-5 flex items-center justify-center text-white rounded me-2 ${option.color}`}>{React.cloneElement(ICON_MAP[option.icon], {className: "w-3 h-3"})}</span>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{getStatusLabel(option, language)}</span>
         </div>
     )
 }
