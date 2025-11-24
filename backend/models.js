@@ -1,3 +1,4 @@
+
 const mongoose = require('mongoose');
 
 // --- User Schema ---
@@ -71,9 +72,20 @@ const settingsSchema = new mongoose.Schema({
   statusOptions: [statusOptionSchema]
 });
 
+// --- Notification Schema ---
+const notificationSchema = new mongoose.Schema({
+    recipientId: { type: String, required: true },
+    message: { type: String, required: true },
+    type: { type: String, enum: ['info', 'success', 'warning', 'alert'], default: 'info' },
+    isRead: { type: Boolean, default: false },
+    date: String,
+    relatedLink: String
+}, { timestamps: true });
+
 const User = mongoose.model('User', userSchema);
 const Team = mongoose.model('Team', teamSchema);
 const PresencePlan = mongoose.model('PresencePlan', presencePlanSchema);
 const Settings = mongoose.model('Settings', settingsSchema);
+const Notification = mongoose.model('Notification', notificationSchema);
 
-module.exports = { User, Team, PresencePlan, Settings };
+module.exports = { User, Team, PresencePlan, Settings, Notification };

@@ -1,6 +1,6 @@
 
-import React from 'react';
-import { User, UserRole } from '../types';
+import React, { useState, useRef, useEffect } from 'react';
+import { User, UserRole, AppNotification } from '../types';
 
 interface LanguageSwitcherProps {
   language: 'en' | 'he';
@@ -90,6 +90,97 @@ const RoleSwitcher: React.FC<RoleSwitcherProps> = ({ t, user, userRole, setUserR
   );
 };
 
+interface NotificationBellProps {
+    t: any;
+    notifications: AppNotification[];
+    onMarkAsRead: (id: string) => void;
+}
+
+const NotificationBell: React.FC<NotificationBellProps> = ({ t, notifications, onMarkAsRead }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+    
+    const unreadCount = notifications.filter(n => !n.isRead).length;
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
+
+    const getTypeColor = (type: string) => {
+        switch(type) {
+            case 'success': return 'text-green-500';
+            case 'warning': return 'text-yellow-500';
+            case 'error': return 'text-red-500';
+            default: return 'text-blue-500';
+        }
+    };
+
+    return (
+        <div className="relative me-4" ref={dropdownRef}>
+            <button 
+                onClick={() => setIsOpen(!isOpen)}
+                className="relative p-2 text-gray-600 dark:text-gray-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                {unreadCount > 0 && (
+                    <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full ring-2 ring-white dark:ring-slate-800"></span>
+                )}
+            </button>
+
+            {isOpen && (
+                <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-800 rounded-md shadow-lg border border-slate-200 dark:border-slate-700 z-50 overflow-hidden">
+                    <div className="p-3 border-b border-slate-200 dark:border-slate-700 font-semibold text-gray-800 dark:text-white flex justify-between items-center">
+                        <span>{t.notifications}</span>
+                        {unreadCount > 0 && <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">{unreadCount}</span>}
+                    </div>
+                    <div className="max-h-80 overflow-y-auto">
+                        {notifications.length > 0 ? (
+                            notifications.map(notification => (
+                                <div 
+                                    key={notification.id} 
+                                    className={`p-3 border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors ${!notification.isRead ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}
+                                >
+                                    <div className="flex items-start">
+                                        <div className="flex-1">
+                                            <p className="text-sm text-gray-800 dark:text-gray-200 mb-1">{notification.message}</p>
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-xs text-gray-500 dark:text-gray-400">{new Date(notification.date).toLocaleDateString()}</span>
+                                                {!notification.isRead && (
+                                                    <button 
+                                                        onClick={() => onMarkAsRead(notification.id)}
+                                                        className="text-xs text-indigo-600 dark:text-indigo-400 font-medium hover:underline"
+                                                    >
+                                                        {t.mark_as_read}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="p-8 text-center text-gray-500 dark:text-gray-400 text-sm">
+                                {t.no_notifications}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+
 interface HeaderProps {
   t: any;
   user: User | null;
@@ -102,9 +193,11 @@ interface HeaderProps {
   setTheme: (theme: 'light' | 'dark') => void;
   onProfileClick: () => void;
   onLogoClick: () => void;
+  notifications?: AppNotification[];
+  onMarkNotificationRead?: (id: string) => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ t, user, language, setLanguage, userRole, setUserRole, onLogout, theme, setTheme, onProfileClick, onLogoClick }) => {
+const Header: React.FC<HeaderProps> = ({ t, user, language, setLanguage, userRole, setUserRole, onLogout, theme, setTheme, onProfileClick, onLogoClick, notifications, onMarkNotificationRead }) => {
   return (
     <header className="bg-white dark:bg-slate-800 shadow-md sticky top-0 z-10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -123,6 +216,9 @@ const Header: React.FC<HeaderProps> = ({ t, user, language, setLanguage, userRol
             <RoleSwitcher t={t} user={user} userRole={userRole} setUserRole={setUserRole} />
           </div>
           <div className="flex items-center space-x-4">
+             {user && notifications && onMarkNotificationRead && (
+                <NotificationBell t={t} notifications={notifications} onMarkAsRead={onMarkNotificationRead} />
+            )}
             <ThemeSwitcher theme={theme} setTheme={setTheme} />
             <LanguageSwitcher language={language} setLanguage={setLanguage} />
             {user && (

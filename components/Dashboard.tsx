@@ -1,355 +1,427 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { PresencePlan, ApprovalStatus, User, HRNotification, Team, StatusOption } from '../types';
+import React, { useState, useMemo } from 'react';
+import { PresencePlan, ApprovalStatus, User, Team, StatusOption } from '../types';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import HRHistoryView from './HRHistoryView';
-import { getStatusLabel } from '../constants';
+import { getStatusLabel, ICON_MAP } from '../constants';
 
 interface DashboardProps {
   t: any;
-  teamPlans: PresencePlan[]; 
+  teamPlans: PresencePlan[];
   teams: Team[];
   users: User[];
   statusOptions: StatusOption[];
   language: 'en' | 'he';
+  theme: 'light' | 'dark';
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ t, teamPlans: allPlans, teams, users, statusOptions, language }) => {
+const Dashboard: React.FC<DashboardProps> = ({ t, teamPlans: allPlans, teams, users, statusOptions, language, theme }) => {
   const [showHistory, setShowHistory] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [notifications, setNotifications] = useState<HRNotification[]>([]);
   
   const [selectedTeamId, setSelectedTeamId] = useState<string>('all');
   const [selectedUserId, setSelectedUserId] = useState<string>('all');
+  
+  // Date Range State
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
-  useEffect(() => {
-      const alerts: HRNotification[] = [];
-      allPlans.forEach(plan => {
-          if (plan.status === ApprovalStatus.Rejected) {
-              const id = `rej-${plan.user.id}-${plan.weekOf}`;
-              alerts.push({
-                  id: id,
-                  userId: plan.user.id,
-                  userName: plan.user.name,
-                  avatarUrl: plan.user.avatarUrl,
-                  message: t.notification_rejected.replace('{user}', plan.user.name).replace('{date}', plan.weekOf),
-                  date: new Date().toLocaleDateString(), 
-                  type: 'alert',
-                  isRead: false 
-              });
+  // Filter plans based on selection
+  const filteredPlans = useMemo(() => {
+      return allPlans.filter(plan => {
+          if (selectedTeamId !== 'all' && plan.user.teamId !== selectedTeamId) return false;
+          if (selectedUserId !== 'all' && plan.user.id !== selectedUserId) return false;
+          
+          if (startDate) {
+              const planDate = new Date(plan.weekOf);
+              const start = new Date(startDate);
+              // Compare timestamps or just yyyy-mm-dd strings
+              if (plan.weekOf < startDate) return false;
+          }
+          if (endDate) {
+               // We want to include the end week, so logic depends on if weekOf represents start or end. 
+               // Assuming weekOf is the Sunday start date.
+               if (plan.weekOf > endDate) return false;
+          }
+
+          return true;
+      });
+  }, [allPlans, selectedTeamId, selectedUserId, startDate, endDate]);
+
+  // Calculate Statistics
+  const stats = useMemo(() => {
+    const total = filteredPlans.length;
+    const approved = filteredPlans.filter((p) => p.status === ApprovalStatus.Approved).length;
+    const submitted = filteredPlans.filter((p) => p.status !== ApprovalStatus.NotSubmitted).length;
+    
+    const complianceRate = total === 0 ? 0 : Math.round((submitted / total) * 100);
+    const approvalRate = submitted === 0 ? 0 : Math.round((approved / submitted) * 100);
+
+    // Presence Distribution (for the week/range)
+    const distribution: Record<string, number> = {};
+    
+    filteredPlans.forEach(plan => {
+        if (plan.status === ApprovalStatus.Approved) {
+            plan.plan.forEach(day => {
+                if (day.status) {
+                    distribution[day.status] = (distribution[day.status] || 0) + 1;
+                }
+            });
+        }
+    });
+
+    const pieData = Object.keys(distribution).map(status => {
+        const opt = statusOptions.find(o => o.value === status);
+        return {
+            name: opt ? getStatusLabel(opt, language) : status,
+            value: distribution[status],
+            color: opt ? opt.color.replace('bg-', '') : 'gray-500', // Simple color mapping
+            rawColor: opt ? opt.color : 'bg-gray-500' 
+        };
+    });
+
+    // Map Tailwind colors to Hex for Recharts
+    const getColorHex = (tailwindClass: string) => {
+        if (tailwindClass.includes('blue')) return '#3b82f6';
+        if (tailwindClass.includes('green')) return '#22c55e';
+        if (tailwindClass.includes('yellow')) return '#eab308';
+        if (tailwindClass.includes('red')) return '#ef4444';
+        if (tailwindClass.includes('purple')) return '#a855f7';
+        if (tailwindClass.includes('gray')) return '#6b7280';
+        if (tailwindClass.includes('pink')) return '#ec4899';
+        if (tailwindClass.includes('indigo')) return '#6366f1';
+        if (tailwindClass.includes('teal')) return '#14b8a6';
+        if (tailwindClass.includes('orange')) return '#f97316';
+        return '#8884d8';
+    };
+
+    const formattedPieData = pieData.map(d => ({ ...d, hex: getColorHex(d.rawColor) }));
+
+    return { complianceRate, total, approvalRate, pieData: formattedPieData };
+  }, [filteredPlans, statusOptions, language]);
+
+  const dailyPresenceData = useMemo(() => {
+      const dateStr = selectedDate.toLocaleDateString('en-CA');
+      
+      const groupedByStatus: Record<string, User[]> = {};
+      
+      filteredPlans.forEach(plan => {
+          if (plan.status !== ApprovalStatus.Approved) return;
+          
+          const dayPlan = plan.plan.find(d => d.date === dateStr);
+          if (dayPlan && dayPlan.status) {
+              if (!groupedByStatus[dayPlan.status]) {
+                  groupedByStatus[dayPlan.status] = [];
+              }
+              groupedByStatus[dayPlan.status].push(plan.user);
           }
       });
-      setNotifications(alerts);
-  }, [allPlans, t]);
 
-  // Hooks must be called unconditionally at the top level
-  const filteredUsers = useMemo(() => {
-    if (selectedTeamId === 'all') return users;
-    return users.filter(u => u.teamId === selectedTeamId);
-  }, [users, selectedTeamId]);
+      return groupedByStatus;
+  }, [filteredPlans, selectedDate]);
 
-  const weekOf = useMemo(() => {
-    const d = new Date(selectedDate);
-    const day = d.getDay();
-    const diff = d.getDate() - day; 
-    const sunday = new Date(d.setDate(diff));
-    return sunday.toLocaleDateString('en-CA');
-  }, [selectedDate]);
-
-  const teamPlans = useMemo(() => {
-    return allPlans.filter(p => {
-        if (p.weekOf !== weekOf) return false;
-        if (selectedTeamId !== 'all') {
-            if (p.user.teamId !== selectedTeamId) return false;
-        }
-        if (selectedUserId !== 'all') {
-            if (p.user.id !== selectedUserId) return false;
-        }
-        return true;
-    });
-  }, [allPlans, weekOf, selectedTeamId, selectedUserId]);
-
-  const totalCompanyEmployees = useMemo(() => {
-    if (selectedUserId !== 'all') return 1;
-    return filteredUsers.length;
-  }, [filteredUsers, selectedUserId]);
-
-  const submittedPlans = teamPlans.filter(p => p.status !== ApprovalStatus.NotSubmitted);
-  const approvedPlans = teamPlans.filter(p => p.status === ApprovalStatus.Approved);
-  
-  const complianceRate = totalCompanyEmployees > 0 ? (submittedPlans.length / totalCompanyEmployees) * 100 : 0;
-  const approvalRate = submittedPlans.length > 0 ? (approvedPlans.length / submittedPlans.length) * 100 : 0;
-
-  const presenceDistribution = teamPlans
-    .flatMap(p => p.plan)
-    .filter(d => d.status)
-    .reduce((acc, day) => {
-      if(day.status) {
-        acc[day.status] = (acc[day.status] || 0) + 1;
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.value) {
+        setSelectedDate(new Date(e.target.value));
       }
-      return acc;
-    }, {} as Record<string, number>);
+  };
 
-  const pieChartData = Object.entries(presenceDistribution).map(([name, value]) => {
-    const option = statusOptions.find(opt => opt.value === name);
-    return {
-      name: option ? getStatusLabel(option, language) : name,
-      originalName: name,
-      value
-    };
-  });
+  const handlePrevDay = () => {
+      const newDate = new Date(selectedDate);
+      newDate.setDate(selectedDate.getDate() - 1);
+      setSelectedDate(newDate);
+  };
 
-  const COLORS = statusOptions.reduce((acc, option) => {
-    const colorMap: { [key: string]: string } = {
-        'bg-blue-500': '#3B82F6',
-        'bg-green-500': '#22C55E',
-        'bg-yellow-500': '#EAB308',
-        'bg-red-500': '#EF4444',
-        'bg-purple-500': '#8B5CF6',
-        'bg-gray-500': '#6B7280',
-        'bg-pink-500': '#EC4899',
-        'bg-indigo-500': '#6366F1',
-        'bg-teal-500': '#14B8A6',
-        'bg-orange-500': '#F97316',
-        'bg-cyan-500': '#06B6D4',
-        'bg-lime-500': '#84CC16',
-    };
-    const label = getStatusLabel(option, language);
-    const color = colorMap[option.color] || '#6B7280';
-    acc[label] = color;
-    acc[option.value] = color;
-    return acc;
-  }, {} as {[key: string]: string});
-  
-  const teamComplianceData = [
-    { name: 'Team A', compliance: 95 },
-    { name: 'Team B', compliance: 88 },
-    { name: 'Team C', compliance: 100 },
-    { name: 'Team D', compliance: 92 },
-  ];
+  const handleNextDay = () => {
+      const newDate = new Date(selectedDate);
+      newDate.setDate(selectedDate.getDate() + 1);
+      setSelectedDate(newDate);
+  };
 
-  const selectedDateString = selectedDate.toLocaleDateString('en-CA');
+  const handleToday = () => {
+      setSelectedDate(new Date());
+  };
 
-  const inOfficeToday: User[] = teamPlans
-    .filter(plan => {
-      if (plan.status !== ApprovalStatus.Approved) return false;
-      const todaySchedule = plan.plan.find(day => day.date === selectedDateString);
-      return todaySchedule?.status === 'Office';
-    }).map(plan => plan.user);
+  const resetFilters = () => {
+      setSelectedTeamId('all');
+      setSelectedUserId('all');
+      setStartDate('');
+      setEndDate('');
+  };
+
+  // Team Compliance Data for Bar Chart
+  const teamComplianceData = useMemo(() => {
+      const data: any[] = [];
+      teams.forEach(team => {
+          // Skip if filtering by a specific team and this isn't it
+          if (selectedTeamId !== 'all' && team.id !== selectedTeamId) return;
+
+          const teamUsers = users.filter(u => u.teamId === team.id);
+          const teamPlanIds = teamUsers.map(u => u.id);
+          
+          const plans = filteredPlans.filter(p => teamPlanIds.includes(p.user.id));
+          
+          // Note: When filtering by date range, 'plans' might be empty if the range excludes them.
+          // Calculating rate based on *filtered* plans vs effective total
+          
+          const submittedCount = plans.filter(p => p.status !== ApprovalStatus.NotSubmitted).length;
+          
+          // If we are filtering by date, the denominator should arguably be the number of expected plans in that range
+          // But for simplicity in this view, we use the count of plans found in the filter as the denominator baseline if > 0
+          const effectiveTotal = plans.length > 0 ? plans.length : (startDate || endDate ? 0 : teamUsers.length); 
+
+          const rate = effectiveTotal === 0 ? 0 : Math.round((submittedCount / effectiveTotal) * 100);
+          
+          data.push({
+              name: team.name,
+              rate: rate
+          });
+      });
+      return data;
+  }, [teams, users, filteredPlans, selectedTeamId, startDate, endDate]);
 
   if (showHistory) {
     return <HRHistoryView t={t} onBack={() => setShowHistory(false)} statusOptions={statusOptions} language={language} />;
   }
 
-  const handleMarkAsRead = (id: string) => {
-      setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-  };
-
-  const handleWhatsApp = (userId: string, message: string) => {
-      const user = users.find(u => u.id === userId);
-      if (!user || !user.phoneNumber) return;
-
-      const cleanNumber = user.phoneNumber.replace(/\D/g, '');
-      let finalNumber = cleanNumber;
-      if (cleanNumber.startsWith('0')) {
-          finalNumber = '972' + cleanNumber.substring(1);
-      }
-      const url = `https://wa.me/${finalNumber}?text=${encodeURIComponent(message)}`;
-      window.open(url, '_blank');
-  };
-
-  const unreadCount = notifications.filter(n => !n.isRead).length;
-  
   return (
     <div>
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{t.hr_dashboard}</h2>
-            <button
-                onClick={() => setShowHistory(true)}
-                className="mt-4 sm:mt-0 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
-            >
-                {t.view_history}
-            </button>
-        </div>
-
-        <div className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-500 me-2" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M10 2a6 6 0 00-6 6v3.586l-1.707 1.707A1 1 0 003 15h14a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
-                    </svg>
-                    {t.notifications}
-                    {unreadCount > 0 && (
-                        <span className="ml-2 px-2 py-0.5 text-xs font-bold bg-red-500 text-white rounded-full">{unreadCount}</span>
-                    )}
-                </h3>
-            </div>
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                {notifications.filter(n => !n.isRead).length > 0 ? (
-                    notifications.filter(n => !n.isRead).map(notification => {
-                        const user = users.find(u => u.id === notification.userId);
-                        return (
-                            <div key={notification.id} className="bg-white dark:bg-slate-800 border-l-4 border-red-500 rounded-r-lg shadow-md p-4 flex items-start">
-                                <img src={notification.avatarUrl} alt={notification.userName} className="h-10 w-10 rounded-full me-3 flex-shrink-0" />
-                                <div className="flex-1">
-                                    <p className="text-sm font-bold text-gray-900 dark:text-white">{notification.userName}</p>
-                                    <p className="text-sm text-gray-600 dark:text-gray-300">{notification.message}</p>
-                                    <div className="flex gap-2 mt-2">
-                                        <button 
-                                            onClick={() => handleMarkAsRead(notification.id)}
-                                            className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline"
-                                        >
-                                            {t.mark_as_read}
-                                        </button>
-                                        {user && user.phoneNumber && (
-                                             <button 
-                                                onClick={() => handleWhatsApp(user.id, notification.message)}
-                                                className="text-xs font-medium text-green-600 hover:text-green-700 flex items-center"
-                                                title={t.send_whatsapp}
-                                            >
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16" className="me-1">
-                                                    <path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592zm3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.729.729 0 0 0-.529.247c-.182.198-.691.677-.691 1.654 0 .977.71 1.916.81 2.049.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232z"/>
-                                                </svg>
-                                                WhatsApp
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })
-                ) : (
-                    <div className="col-span-full p-4 bg-gray-50 dark:bg-slate-700/30 rounded-lg text-center text-gray-500 dark:text-gray-400 text-sm">
-                        {t.no_notifications}
-                    </div>
-                )}
-            </div>
-        </div>
-
-        <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-lg mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                <div>
-                    <label htmlFor="selected-date" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t.filter_by_date}</label>
-                    <input 
-                        type="date" 
-                        id="selected-date" 
-                        value={selectedDate.toLocaleDateString('en-CA')} 
-                        onChange={e => setSelectedDate(e.target.value ? new Date(e.target.value + 'T00:00:00') : new Date())} 
-                        className="w-full bg-white dark:bg-slate-600 border-slate-300 dark:border-slate-500 rounded-md shadow-sm p-2 text-sm" />
-                </div>
-
-                <div>
-                    <label htmlFor="team-filter" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t.filter_by_team}</label>
-                    <select
-                        id="team-filter"
-                        value={selectedTeamId}
-                        onChange={(e) => {
-                            setSelectedTeamId(e.target.value);
-                            setSelectedUserId('all'); 
-                        }}
-                        className="w-full bg-white dark:bg-slate-600 border-slate-300 dark:border-slate-500 rounded-md shadow-sm p-2 text-sm"
-                    >
-                        <option value="all">{t.all_teams}</option>
-                        {teams.map(team => (
-                            <option key={team.id} value={team.id}>{team.name}</option>
-                        ))}
-                    </select>
-                </div>
-
-                <div>
-                    <label htmlFor="user-filter" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t.filter_by_user}</label>
-                    <select
-                        id="user-filter"
-                        value={selectedUserId}
-                        onChange={(e) => setSelectedUserId(e.target.value)}
-                        className="w-full bg-white dark:bg-slate-600 border-slate-300 dark:border-slate-500 rounded-md shadow-sm p-2 text-sm"
-                    >
-                        <option value="all">{t.all_users}</option>
-                        {filteredUsers.map(user => (
-                            <option key={user.id} value={user.id}>{user.name}</option>
-                        ))}
-                    </select>
-                </div>
-            </div>
-        </div>
+      <div className="flex flex-col sm:flex-row justify-between items-center mb-8">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{t.hr_dashboard}</h2>
+        <button
+          onClick={() => setShowHistory(true)}
+          className="mt-4 sm:mt-0 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+        >
+          {t.view_history}
+        </button>
+      </div>
       
-      {teamPlans.length > 0 || (submittedPlans.length === 0 && totalCompanyEmployees > 0) ? (
-        <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <MetricCard title={t.compliance_rate} value={`${complianceRate.toFixed(0)}%`} />
-                <MetricCard title={t.total_submissions} value={`${submittedPlans.length}/${totalCompanyEmployees}`} />
-                <MetricCard title={t.approval_rate} value={`${approvalRate.toFixed(0)}%`} />
+      {/* Filters */}
+      <div className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t.start_date}</label>
+                <input 
+                    type="date" 
+                    value={startDate} 
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 py-2 px-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm text-gray-900 dark:text-white"
+                />
             </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <ChartCard title={t.presence_distribution}>
-                <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                    <Pie data={pieChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
-                        {pieChartData.map((entry) => (
-                        <Cell key={`cell-${entry.name}`} fill={COLORS[entry.name]} />
-                        ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                    </PieChart>
-                </ResponsiveContainer>
-                </ChartCard>
-                
-                <ChartCard title={t.team_compliance}>
-                <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={teamComplianceData}>
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="compliance" fill="#4f46e5" />
-                    </BarChart>
-                </ResponsiveContainer>
-                </ChartCard>
-
-                <div className="lg:col-span-2">
-                <ChartCard title={`${t.whos_in_office} (${selectedDate.toLocaleDateString()})`}>
-                    {inOfficeToday.length > 0 ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                        {inOfficeToday.map(user => (
-                        <div key={user.id} className="flex flex-col items-center text-center p-2">
-                            <img src={user.avatarUrl} alt={user.name} className="w-16 h-16 rounded-full mb-2 shadow-md" />
-                            <span className="text-sm font-medium text-gray-800 dark:text-gray-200">{user.name}</span>
-                        </div>
-                        ))}
-                    </div>
-                    ) : (
-                    <div className="flex items-center justify-center h-40">
-                        <p className="text-gray-500 dark:text-gray-400 text-center">{t.no_one_in_office}</p>
-                    </div>
-                    )}
-                </ChartCard>
-                </div>
-
+            <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t.end_date}</label>
+                <input 
+                    type="date" 
+                    value={endDate} 
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 py-2 px-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm text-gray-900 dark:text-white"
+                />
             </div>
-        </>
-      ) : (
-        <div className="text-center py-10 bg-white dark:bg-slate-800 rounded-lg shadow-md">
-            <p className="text-gray-500 dark:text-gray-400">{t.no_plans_in_range}</p>
+            <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t.filter_by_team}</label>
+                <select 
+                    value={selectedTeamId} 
+                    onChange={(e) => {
+                        setSelectedTeamId(e.target.value);
+                        setSelectedUserId('all'); // Reset user filter when team changes
+                    }}
+                    className="w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 py-2 px-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm text-gray-900 dark:text-white"
+                >
+                    <option value="all">{t.all_teams}</option>
+                    {teams.map(team => (
+                        <option key={team.id} value={team.id}>{team.name}</option>
+                    ))}
+                </select>
+            </div>
+            <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t.filter_by_user}</label>
+                <select 
+                    value={selectedUserId} 
+                    onChange={(e) => setSelectedUserId(e.target.value)}
+                    className="w-full rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 py-2 px-3 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 sm:text-sm text-gray-900 dark:text-white"
+                >
+                    <option value="all">{t.all_users}</option>
+                    {users
+                        .filter(u => selectedTeamId === 'all' || u.teamId === selectedTeamId)
+                        .map(user => (
+                        <option key={user.id} value={user.id}>{user.name}</option>
+                    ))}
+                </select>
+            </div>
         </div>
-      )}
+        {(startDate || endDate || selectedTeamId !== 'all' || selectedUserId !== 'all') && (
+            <div className="mt-4 flex justify-end">
+                <button onClick={resetFilters} className="text-sm text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 underline font-medium">
+                    {t.reset}
+                </button>
+            </div>
+        )}
+      </div>
+
+      {/* Metrics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6">
+          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">{t.compliance_rate}</h3>
+          <p className="text-4xl font-bold text-indigo-600 dark:text-indigo-400 mt-2">{stats.complianceRate}%</p>
+        </div>
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6">
+          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">{t.total_submissions}</h3>
+          <p className="text-4xl font-bold text-green-600 dark:text-green-400 mt-2">{stats.total}</p>
+        </div>
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6">
+          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">{t.approval_rate}</h3>
+          <p className="text-4xl font-bold text-blue-600 dark:text-blue-400 mt-2">{stats.approvalRate}%</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        {/* Presence Distribution Chart */}
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">{t.presence_distribution}</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={stats.pieData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  fill="#8884d8"
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {stats.pieData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.hex} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                    contentStyle={{ 
+                        backgroundColor: theme === 'dark' ? '#1e293b' : '#fff', 
+                        borderColor: theme === 'dark' ? '#334155' : '#e2e8f0',
+                        color: theme === 'dark' ? '#fff' : '#000'
+                    }}
+                    itemStyle={{ color: theme === 'dark' ? '#fff' : '#000' }}
+                />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Team Compliance Chart */}
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow-md p-6">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">{t.team_compliance}</h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={teamComplianceData}>
+                <XAxis 
+                    dataKey="name" 
+                    stroke={theme === 'dark' ? '#94a3b8' : '#4b5563'} 
+                    tick={{fill: theme === 'dark' ? '#cbd5e1' : '#374151'}}
+                />
+                <YAxis 
+                    stroke={theme === 'dark' ? '#94a3b8' : '#4b5563'} 
+                    tick={{fill: theme === 'dark' ? '#cbd5e1' : '#374151'}}
+                />
+                <Tooltip 
+                    cursor={{fill: theme === 'dark' ? '#334155' : '#f3f4f6'}}
+                    contentStyle={{ 
+                        backgroundColor: theme === 'dark' ? '#1e293b' : '#fff', 
+                        borderColor: theme === 'dark' ? '#334155' : '#e2e8f0',
+                        color: theme === 'dark' ? '#fff' : '#000'
+                    }}
+                />
+                <Bar dataKey="rate" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Daily Presence Snapshot with History Navigation */}
+      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-6">
+          <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">{t.daily_presence_snapshot}</h3>
+              <div className="flex items-center bg-slate-100 dark:bg-slate-700 p-1 rounded-lg">
+                  <button 
+                      onClick={handlePrevDay} 
+                      className="p-1 text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400"
+                      title={t.prev_day}
+                  >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                  </button>
+                  <div className="flex items-center mx-2">
+                       <label className="sr-only">{t.filter_by_date}</label>
+                      <input 
+                        type="date" 
+                        value={selectedDate.toISOString().split('T')[0]}
+                        onChange={handleDateChange}
+                        className="rounded-md border-none bg-transparent py-1 px-2 focus:ring-0 sm:text-sm text-gray-900 dark:text-white font-medium cursor-pointer"
+                      />
+                  </div>
+                   <button 
+                      onClick={handleNextDay} 
+                      className="p-1 text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400"
+                      title={t.next_day}
+                  >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                      </svg>
+                  </button>
+                  <button 
+                    onClick={handleToday}
+                    className="ms-2 px-2 py-1 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                  >
+                      {t.today}
+                  </button>
+              </div>
+          </div>
+
+          <div className="space-y-6">
+              {Object.keys(dailyPresenceData).length > 0 ? (
+                   Object.keys(dailyPresenceData).map(status => {
+                    const option = statusOptions.find(opt => opt.value === status);
+                    if (!option) return null;
+                    
+                    return (
+                        <div key={status}>
+                             <div className="flex items-center mb-3">
+                                <span className={`w-3 h-3 rounded-full me-2 ${option.color}`}></span>
+                                <h4 className="font-semibold text-gray-800 dark:text-white flex items-center">
+                                    {getStatusLabel(option, language)}
+                                    <span className="ms-2 text-xs font-normal text-gray-500 dark:text-gray-400">({dailyPresenceData[status].length})</span>
+                                </h4>
+                            </div>
+                            <div className="flex flex-wrap gap-3">
+                                {dailyPresenceData[status].map(user => (
+                                    <div key={user.id} className="flex items-center bg-slate-50 dark:bg-slate-700/50 rounded-full pe-3 ps-1 py-1 border border-slate-200 dark:border-slate-600">
+                                        <img src={user.avatarUrl} alt={user.name} className="w-8 h-8 rounded-full me-2"/>
+                                        <div>
+                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300 block leading-tight">{user.name}</span>
+                                            {user.teamId && (
+                                                <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                                                    {teams.find(t => t.id === user.teamId)?.name}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                })
+              ) : (
+                  <div className="text-center py-10 text-gray-500 dark:text-gray-400">
+                      {t.no_data_for_date}
+                  </div>
+              )}
+          </div>
+      </div>
     </div>
   );
 };
-
-const MetricCard: React.FC<{title: string, value: string}> = ({title, value}) => (
-    <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-md">
-        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</h3>
-        <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{value}</p>
-    </div>
-);
-
-const ChartCard: React.FC<{title: string, children: React.ReactNode}> = ({ title, children }) => (
-  <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-md">
-    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{title}</h3>
-    {children}
-  </div>
-);
 
 export default Dashboard;

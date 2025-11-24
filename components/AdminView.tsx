@@ -4,6 +4,13 @@ import { MOCK_ALL_USERS, MOCK_AUDIT_LOGS, MOCK_TEAMS, AVAILABLE_COLORS, ICON_MAP
 import { User, UserRole, Team, MandatoryDate, WorkPolicy, StatusOption, IconName } from '../types';
 import MandatoryDatesManagement from './MandatoryDatesManagement';
 
+const Card: React.FC<{title: string, children: React.ReactNode}> = ({ title, children }) => (
+    <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-md">
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{title}</h3>
+      {children}
+    </div>
+);
+
 interface AdminViewProps {
   t: any;
   mandatoryDates: MandatoryDate[];
@@ -297,13 +304,6 @@ const AdminView: React.FC<AdminViewProps> = ({ t, mandatoryDates, onAddMandatory
     </div>
   );
 };
-
-const Card: React.FC<{title: string, children: React.ReactNode}> = ({ title, children }) => (
-    <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-md">
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{title}</h3>
-      {children}
-    </div>
-);
 
 interface TeamManagementTableProps {
     t: any;

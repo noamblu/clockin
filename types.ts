@@ -66,15 +66,18 @@ export interface User {
   phoneNumber?: string;
 }
 
-export interface HRNotification {
+export interface AppNotification {
   id: string;
-  userId: string;
-  userName: string;
-  avatarUrl: string;
+  recipientId: string;
   message: string;
   date: string;
-  type: 'alert' | 'warning' | 'info';
+  type: 'info' | 'success' | 'warning' | 'alert';
   isRead: boolean;
+  relatedLink?: string;
+  // Optional for backward compatibility with HR Dashboard alerts
+  userId?: string; 
+  userName?: string;
+  avatarUrl?: string;
 }
 
 export interface MandatoryDate {

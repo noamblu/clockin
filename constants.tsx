@@ -2,7 +2,7 @@
 import React from 'react';
 import { PresenceStatus, ApprovalStatus, UserRole, PresencePlan, User, DailyPlan, Team, MandatoryDate, WorkPolicy, StatusOption, IconName } from './types';
 
-export const ICON_MAP: Record<IconName, React.ReactElement> = {
+export const ICON_MAP: any = {
   office: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 110 2h-3a1 1 0 01-1-1v-2a1 1 0 00-1-1H9a1 1 0 00-1 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1zm3 1h6v4H7V5zm6 6H7v4h6v-4z" clipRule="evenodd" /></svg>,
   home: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z" /></svg>,
   sun: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" /></svg>,
@@ -91,9 +91,11 @@ export const TRANSLATIONS = {
     presence_distribution: 'Presence Distribution',
     team_compliance: 'Team Compliance',
     whos_in_office: "Who's in the Office",
+    daily_presence_snapshot: 'Daily Presence Snapshot',
     filter_by_date: 'Filter by Date',
     no_plans_in_range: 'No plans found for the selected date range.',
     no_one_in_office: 'No one is scheduled to be in the office on this date.',
+    no_data_for_date: 'No presence data available for this date.',
     reminder_title: 'Submission Reminder',
     reminder_body: 'Please submit your weekly presence plan by tomorrow.',
     employee: 'Employee',
@@ -229,6 +231,13 @@ export const TRANSLATIONS = {
     email_body_reminder: 'Hi {name},\n\nPlease submit your weekly presence plan for {week}.\n\nThanks,',
     email_subject_approval: 'Plan Approved: Weekly Presence',
     email_body_approval: 'Hi {name},\n\nYour weekly presence plan for {week} has been approved.\n\nThanks,',
+    notification_plan_submitted: '{name} submitted a plan for week {week}.',
+    notification_plan_approved: 'Your plan for {week} was approved!',
+    notification_plan_rejected: 'Your plan for {week} was rejected.',
+    view_plan: 'View Plan',
+    today: 'Today',
+    prev_day: 'Previous Day',
+    next_day: 'Next Day',
   },
   he: {
     title: 'ClockIn',
@@ -269,9 +278,11 @@ export const TRANSLATIONS = {
     presence_distribution: 'התפלגות נוכחות',
     team_compliance: 'היענות צוותית',
     whos_in_office: 'מי במשרד',
+    daily_presence_snapshot: 'תמונת מצב יומית',
     filter_by_date: 'סנן לפי תאריך',
     no_plans_in_range: 'לא נמצאו תוכניות לטווח התאריכים שנבחר.',
     no_one_in_office: 'אף אחד לא מתוכנן להיות במשרד בתאריך זה.',
+    no_data_for_date: 'אין נתוני נוכחות עבור תאריך זה.',
     reminder_title: 'תזכורת הגשה',
     reminder_body: 'נא לשלוח את תוכנית הנוכחות השבועית שלך עד מחר.',
     employee: 'עובד',
@@ -407,6 +418,13 @@ export const TRANSLATIONS = {
     email_body_reminder: 'היי {name},\n\nנא למלא את תוכנית הנוכחות השבועית עבור {week}.\n\nבברכה,',
     email_subject_approval: 'תוכנית נוכחות אושרה',
     email_body_approval: 'היי {name},\n\nתוכנית הנוכחות השבועית שלך עבור {week} אושרה.\n\nבברכה,',
+    notification_plan_submitted: '{name} הגיש תוכנית עבור שבוע {week}.',
+    notification_plan_approved: 'התוכנית שלך לשבוע {week} אושרה!',
+    notification_plan_rejected: 'התוכנית שלך לשבוע {week} נדחתה.',
+    view_plan: 'צפה בתוכנית',
+    today: 'היום',
+    prev_day: 'יום קודם',
+    next_day: 'יום הבא',
   }
 };
 
@@ -443,18 +461,46 @@ export const getWeekDays = (date: Date = new Date()): DailyPlan[] => {
   const diff = startOfWeek.getDate() - day; // adjust when day is Sunday
   startOfWeek.setDate(diff);
 
-  const days = [];
+  const correctedDays = [];
   for (let i = 0; i < 5; i++) {
     const current = new Date(startOfWeek);
     current.setDate(startOfWeek.getDate() + i);
-    days.push({
+    correctedDays.push({
       day: current.toLocaleDateString('en-US', { weekday: 'long' }),
       date: current.toLocaleDateString('en-CA'),
       status: null as string | null,
       note: ''
     });
   }
-  return days;
+  return correctedDays;
+};
+
+// Generate consistent mock plans for all users so the dashboard looks populated
+export const generateMockTeamPlans = (): PresencePlan[] => {
+    const weekDays = getWeekDays();
+    const weekOf = weekDays[0].date;
+    
+    // Statuses for random generation
+    const statuses = ['Office', 'Home', 'Office', 'Office', 'Home']; 
+    
+    return MOCK_ALL_USERS.map(user => {
+        // Deterministic pseudo-random based on user ID char code to keep it stable across re-renders
+        const idSum = user.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        
+        const plan = weekDays.map((day, idx) => {
+            // Rotate statuses based on user ID to create variety
+            const statusIndex = (idSum + idx) % statuses.length;
+            return { ...day, status: statuses[statusIndex] };
+        });
+
+        return {
+            user: user,
+            weekOf: weekOf,
+            status: ApprovalStatus.Approved,
+            plan: plan,
+            submittedAt: new Date()
+        };
+    });
 };
 
 export const MOCK_EMPLOYEE_PLAN: PresencePlan = {
@@ -464,47 +510,7 @@ export const MOCK_EMPLOYEE_PLAN: PresencePlan = {
   plan: getWeekDays(),
 };
 
-export const MOCK_TEAM_PLANS: PresencePlan[] = [
-  {
-    user: MOCK_ALL_USERS[1], // Dana
-    weekOf: getWeekDays()[0].date,
-    status: ApprovalStatus.Approved,
-    plan: [
-      { day: 'Sunday', date: getWeekDays()[0].date, status: 'Office' },
-      { day: 'Monday', date: getWeekDays()[1].date, status: 'Home' },
-      { day: 'Tuesday', date: getWeekDays()[2].date, status: 'Office' },
-      { day: 'Wednesday', date: getWeekDays()[3].date, status: 'Office' },
-      { day: 'Thursday', date: getWeekDays()[4].date, status: 'Home' },
-    ],
-    submittedAt: new Date(),
-  },
-  {
-    user: MOCK_ALL_USERS[5], // David
-    weekOf: getWeekDays()[0].date,
-    status: ApprovalStatus.Pending,
-    plan: [
-      { day: 'Sunday', date: getWeekDays()[0].date, status: 'Home' },
-      { day: 'Monday', date: getWeekDays()[1].date, status: 'Office' },
-      { day: 'Tuesday', date: getWeekDays()[2].date, status: 'Home' },
-      { day: 'Wednesday', date: getWeekDays()[3].date, status: 'Office' },
-      { day: 'Thursday', date: getWeekDays()[4].date, status: 'Home' },
-    ],
-    submittedAt: new Date(),
-  },
-   {
-    user: MOCK_ALL_USERS[2], // Yossi
-    weekOf: getWeekDays()[0].date,
-    status: ApprovalStatus.Approved,
-    plan: [
-      { day: 'Sunday', date: getWeekDays()[0].date, status: 'Office' },
-      { day: 'Monday', date: getWeekDays()[1].date, status: 'Office' },
-      { day: 'Tuesday', date: getWeekDays()[2].date, status: 'Office' },
-      { day: 'Wednesday', date: getWeekDays()[3].date, status: 'Office' },
-      { day: 'Thursday', date: getWeekDays()[4].date, status: 'Office' },
-    ],
-    submittedAt: new Date(),
-  },
-];
+export const MOCK_TEAM_PLANS: PresencePlan[] = generateMockTeamPlans();
 
 export const MOCK_AUDIT_LOGS = [
   { timestamp: new Date('2023-10-26 10:00'), user: 'Admin', action: 'Approved plan for Galia Levi' },

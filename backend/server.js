@@ -1,10 +1,11 @@
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const dotenv = require('dotenv');
-const { User, Team, PresencePlan, Settings } = require('./models');
+const { User, Team, PresencePlan, Settings, Notification } = require('./models');
 
 dotenv.config();
 
@@ -225,6 +226,20 @@ app.post('/api/plans', authenticateToken, async (req, res) => {
   
   // Hydrate user
   const user = await User.findOne({ id: req.user.id });
+
+  // NOTIFICATION LOGIC: Notify Team Lead
+  if (user.teamId) {
+      const team = await Team.findOne({ id: user.teamId });
+      if (team && team.leaderId && team.leaderId !== req.user.id) {
+          await Notification.create({
+              recipientId: team.leaderId,
+              message: `${user.name} submitted a plan for week ${weekOf}`,
+              type: 'info',
+              date: new Date().toISOString(),
+              relatedLink: '/team-view' 
+          });
+      }
+  }
   
   res.json({ ...updatedPlan.toObject(), user });
 });
@@ -238,7 +253,28 @@ app.put('/api/plans/:id/status', authenticateToken, async (req, res) => {
     
     plan.status = status;
     await plan.save();
+
+    // NOTIFICATION LOGIC: Notify Plan Owner
+    await Notification.create({
+        recipientId: plan.userId,
+        message: `Your presence plan for week ${plan.weekOf} was ${status}`,
+        type: status === 'Approved' ? 'success' : 'warning',
+        date: new Date().toISOString(),
+        relatedLink: '/dashboard'
+    });
+
     res.json(plan);
+});
+
+// --- Notifications ---
+app.get('/api/notifications', authenticateToken, async (req, res) => {
+    const notifications = await Notification.find({ recipientId: req.user.id }).sort({ createdAt: -1 });
+    res.json(notifications);
+});
+
+app.put('/api/notifications/:id/read', authenticateToken, async (req, res) => {
+    await Notification.findByIdAndUpdate(req.params.id, { isRead: true });
+    res.json({ success: true });
 });
 
 // --- Settings ---
