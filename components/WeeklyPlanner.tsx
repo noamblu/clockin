@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { PresencePlan, DailyPlan, ApprovalStatus, MandatoryDate, WorkPolicy, StatusOption } from '../types';
-import { getSubmissionDeadline, ICON_MAP, getStatusLabel } from '../constants';
+import { getSubmissionDeadline, ICON_MAP, getStatusLabel, getDayLabel } from '../constants';
 import StatusBadge from './StatusBadge';
 
 interface WeeklyPlannerProps {
@@ -299,7 +299,7 @@ const DayCard: React.FC<DayCardProps> = ({ day, index, onStatusChange, onNoteCha
         <div className={`rounded-lg p-4 flex flex-col justify-between relative transition-all duration-300 ${isSelected ? 'bg-white dark:bg-slate-700 ring-2 ring-indigo-500/50 shadow-md' : 'bg-slate-50 dark:bg-slate-700/50 border border-transparent'}`}>
             <div className="flex justify-between items-start mb-4">
                 <div>
-                    <p className="font-bold text-gray-800 dark:text-gray-200">{day.day}</p>
+                    <p className="font-bold text-gray-800 dark:text-gray-200">{getDayLabel(day.day, language)}</p>
                     <p className="text-sm text-gray-500 dark:text-gray-400">{day.date}</p>
                 </div>
                 {isSelected && !mandatoryRule && (

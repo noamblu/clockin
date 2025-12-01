@@ -46,6 +46,20 @@ export const getStatusLabel = (option: StatusOption, language: 'en' | 'he') => {
     return option.label;
 };
 
+export const DAYS_TRANSLATION: Record<string, { en: string; he: string }> = {
+  'Sunday': { en: 'Sunday', he: 'ראשון' },
+  'Monday': { en: 'Monday', he: 'שני' },
+  'Tuesday': { en: 'Tuesday', he: 'שלישי' },
+  'Wednesday': { en: 'Wednesday', he: 'רביעי' },
+  'Thursday': { en: 'Thursday', he: 'חמישי' },
+  'Friday': { en: 'Friday', he: 'שישי' },
+  'Saturday': { en: 'Saturday', he: 'שבת' },
+};
+
+export const getDayLabel = (dayName: string, language: 'en' | 'he') => {
+    return DAYS_TRANSLATION[dayName]?.[language] || dayName;
+};
+
 export const PRESENCE_STATUS_OPTIONS = INITIAL_STATUS_OPTIONS.map(opt => ({
     ...opt,
     icon: ICON_MAP[opt.icon]

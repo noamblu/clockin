@@ -33,14 +33,9 @@ const Dashboard: React.FC<DashboardProps> = ({ t, teamPlans: allPlans, teams, us
           if (selectedUserId !== 'all' && plan.user.id !== selectedUserId) return false;
           
           if (startDate) {
-              const planDate = new Date(plan.weekOf);
-              const start = new Date(startDate);
-              // Compare timestamps or just yyyy-mm-dd strings
               if (plan.weekOf < startDate) return false;
           }
           if (endDate) {
-               // We want to include the end week, so logic depends on if weekOf represents start or end. 
-               // Assuming weekOf is the Sunday start date.
                if (plan.weekOf > endDate) return false;
           }
 
@@ -82,6 +77,7 @@ const Dashboard: React.FC<DashboardProps> = ({ t, teamPlans: allPlans, teams, us
 
     // Map Tailwind colors to Hex for Recharts
     const getColorHex = (tailwindClass: string) => {
+        if (!tailwindClass) return '#6b7280';
         if (tailwindClass.includes('blue')) return '#3b82f6';
         if (tailwindClass.includes('green')) return '#22c55e';
         if (tailwindClass.includes('yellow')) return '#eab308';
@@ -92,6 +88,8 @@ const Dashboard: React.FC<DashboardProps> = ({ t, teamPlans: allPlans, teams, us
         if (tailwindClass.includes('indigo')) return '#6366f1';
         if (tailwindClass.includes('teal')) return '#14b8a6';
         if (tailwindClass.includes('orange')) return '#f97316';
+        if (tailwindClass.includes('cyan')) return '#06b6d4';
+        if (tailwindClass.includes('lime')) return '#84cc16';
         return '#8884d8';
     };
 
@@ -122,7 +120,9 @@ const Dashboard: React.FC<DashboardProps> = ({ t, teamPlans: allPlans, teams, us
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.value) {
-        setSelectedDate(new Date(e.target.value));
+        // Create date as UTC to avoid timezone shifts when picking from input type="date"
+        const d = new Date(e.target.value);
+        setSelectedDate(d);
       }
   };
 
@@ -161,13 +161,9 @@ const Dashboard: React.FC<DashboardProps> = ({ t, teamPlans: allPlans, teams, us
           
           const plans = filteredPlans.filter(p => teamPlanIds.includes(p.user.id));
           
-          // Note: When filtering by date range, 'plans' might be empty if the range excludes them.
-          // Calculating rate based on *filtered* plans vs effective total
-          
           const submittedCount = plans.filter(p => p.status !== ApprovalStatus.NotSubmitted).length;
-          
-          // If we are filtering by date, the denominator should arguably be the number of expected plans in that range
-          // But for simplicity in this view, we use the count of plans found in the filter as the denominator baseline if > 0
+          // Use total users in team as denominator unless filtered view is very specific
+          // For simplicity, we use the effective plans found or total users if no plans found in filter but users exist
           const effectiveTotal = plans.length > 0 ? plans.length : (startDate || endDate ? 0 : teamUsers.length); 
 
           const rate = effectiveTotal === 0 ? 0 : Math.round((submittedCount / effectiveTotal) * 100);
@@ -357,7 +353,7 @@ const Dashboard: React.FC<DashboardProps> = ({ t, teamPlans: allPlans, teams, us
                        <label className="sr-only">{t.filter_by_date}</label>
                       <input 
                         type="date" 
-                        value={selectedDate.toISOString().split('T')[0]}
+                        value={selectedDate.toLocaleDateString('en-CA')}
                         onChange={handleDateChange}
                         className="rounded-md border-none bg-transparent py-1 px-2 focus:ring-0 sm:text-sm text-gray-900 dark:text-white font-medium cursor-pointer"
                       />

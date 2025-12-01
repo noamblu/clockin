@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { PresencePlan, User, ApprovalStatus, DailyPlan, StatusOption } from '../types';
-import { ICON_MAP, getStatusLabel } from '../constants';
+import { ICON_MAP, getStatusLabel, getDayLabel } from '../constants';
 import StatusBadge from './StatusBadge';
 
 interface MyTeamStatusProps {
@@ -53,7 +54,7 @@ const WeeklyPlanRow: React.FC<{ plan: PresencePlan; t: any, statusOptions: Statu
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {plan.plan.map((day) => (
               <div key={day.date} className="bg-white dark:bg-slate-700 rounded p-3 shadow-sm border border-gray-100 dark:border-gray-600">
-                <p className="font-bold text-gray-800 dark:text-gray-200">{day.day}</p>
+                <p className="font-bold text-gray-800 dark:text-gray-200">{getDayLabel(day.day, language)}</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{day.date}</p>
                 <DayStatusDisplay status={day.status} note={day.note} t={t} statusOptions={statusOptions} language={language} />
               </div>
@@ -91,7 +92,7 @@ const RangePlanRow: React.FC<{ user: User; days: DailyPlan[]; t: any, statusOpti
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {days.map((day) => (
               <div key={day.date} className="bg-white dark:bg-slate-700 rounded p-3 shadow-sm border border-gray-100 dark:border-gray-600">
-                <p className="font-bold text-gray-800 dark:text-gray-200">{day.day}</p>
+                <p className="font-bold text-gray-800 dark:text-gray-200">{getDayLabel(day.day, language)}</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{day.date}</p>
                 <DayStatusDisplay status={day.status} note={day.note} t={t} statusOptions={statusOptions} language={language} />
               </div>

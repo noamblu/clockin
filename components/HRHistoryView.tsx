@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { PresencePlan, StatusOption } from '../types';
 import StatusBadge from './StatusBadge';
-import { MOCK_ALL_HISTORICAL_PLANS, ICON_MAP, getStatusLabel } from '../constants';
+import { MOCK_ALL_HISTORICAL_PLANS, ICON_MAP, getStatusLabel, getDayLabel } from '../constants';
 
 interface HRHistoryViewProps {
   t: any;
@@ -100,7 +100,7 @@ const HistoricalPlanRow: React.FC<{ plan: PresencePlan; t: any, statusOptions: S
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {plan.plan.map((day) => (
               <div key={day.date} className="bg-white dark:bg-slate-700 rounded p-3 shadow-sm">
-                <p className="font-bold text-gray-800 dark:text-gray-200">{day.day}</p>
+                <p className="font-bold text-gray-800 dark:text-gray-200">{getDayLabel(day.day, language)}</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{day.date}</p>
                 <DayStatusDisplay status={day.status} t={t} statusOptions={statusOptions} language={language} />
               </div>
